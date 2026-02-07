@@ -52,21 +52,24 @@ async function queryD1(sql: string, params: any[] = []) {
 
     if (!data.success) {
       console.error("D1 API Error Response:", JSON.stringify(data.errors));
-      return { results: [], success: false };
+      return { results: [], success: false, changes: 0 };
     }
 
-    if (!data.result || !data.result[0]) {
-      console.warn("D1 API returned success but no result array.");
-      return { results: [], success: true };
+    const resultObj = data.result && data.result[0] ? data.result[0] : { results: [], meta: {} };
+    const changes = resultObj.meta?.changes || 0;
+
+    if (!sql.toLowerCase().startsWith("select") && changes !== undefined) {
+      console.log(`D1 Rows Affected: ${changes}`);
     }
 
     return {
-      results: data.result[0].results || [],
-      success: true
+      results: resultObj.results || [],
+      success: true,
+      changes: changes
     };
   } catch (error) {
     console.error("Critical D1 Connection Error:", error);
-    throw error; // Re-throw so Astro sees the 500 with a clear message in logs
+    throw error;
   }
 }
 
@@ -99,8 +102,8 @@ export async function addLink(link: ReviewLink): Promise<ReviewLink> {
 }
 
 export async function deleteLink(id: string): Promise<boolean> {
-  const { success } = await queryD1("DELETE FROM links WHERE id = ?", [id]);
-  return success;
+  const { success, changes } = await queryD1("DELETE FROM links WHERE id = ?", [id]);
+  return success && (changes ?? 0) > 0;
 }
 
 export async function updateLink(
@@ -114,8 +117,8 @@ export async function updateLink(
   const params = [...Object.values(updates), id];
   const sql = `UPDATE links SET ${setClause} WHERE id = ?`;
 
-  const { success } = await queryD1(sql, params);
-  return success;
+  const { success, changes } = await queryD1(sql, params);
+  return success && (changes ?? 0) > 0;
 }
 
 export async function addFeedback(feedback: ReviewFeedback): Promise<ReviewFeedback> {
