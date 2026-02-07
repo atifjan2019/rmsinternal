@@ -13,7 +13,7 @@ export interface ReviewLink {
  * This allows Vercel-hosted Astro to talk to Cloudflare D1.
  */
 
-const CF_ACCOUNT_ID = process.env.CF_ACCOUNT_ID;
+const CF_ACCOUNT_ID = process.env.CF_ACCOUNT_ID || "cd15ad0da57162f7271e52faac2dda55";
 const CF_DATABASE_ID = process.env.CF_DATABASE_ID || "c5f98e64-c766-400f-a15c-b0e7288fe1ee";
 const CF_API_TOKEN = process.env.CF_API_TOKEN;
 
