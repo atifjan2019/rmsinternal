@@ -85,7 +85,7 @@ const hasLogo = !!link.logoUrl;
           <p class="text-[10px] sm:text-xs font-medium text-slate-400">
             {new Date().getFullYear()} Copyright. Developed by 
             <a 
-              href={`https://webspires.co.uk?utm_source=${encodeURIComponent(link.businessName)}`}
+              href={`https://webspires.co.uk?utm_source=${encodeURIComponent(link.businessName.replace(/\s+/g, ''))}`}
               target="_blank"
               rel="noopener noreferrer"
               class="font-bold text-slate-600 hover:text-[#FAB005] transition-colors"
