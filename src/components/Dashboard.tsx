@@ -19,6 +19,7 @@ export default function Dashboard() {
     const [loading, setLoading] = useState(false);
     const [copySuccess, setCopySuccess] = useState<string | null>(null);
     const [showForm, setShowForm] = useState(false);
+    const [editingId, setEditingId] = useState<string | null>(null);
     const [baseUrl, setBaseUrl] = useState("");
 
     useEffect(() => {
@@ -37,8 +38,11 @@ export default function Dashboard() {
         setLoading(true);
 
         try {
-            const res = await fetch("/api/links", {
-                method: "POST",
+            const url = editingId ? `/api/links?id=${editingId}` : "/api/links";
+            const method = editingId ? "PATCH" : "POST";
+
+            const res = await fetch(url, {
+                method,
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     businessName,
@@ -54,13 +58,24 @@ export default function Dashboard() {
                 setLogoUrl("");
                 setBackgroundImageUrl("");
                 setShowForm(false);
+                setEditingId(null);
                 fetchLinks();
             }
         } catch (error) {
-            console.error("Failed to create link:", error);
+            console.error(`Failed to ${editingId ? 'update' : 'create'} link:`, error);
         } finally {
             setLoading(false);
         }
+    }
+
+    function handleEdit(link: ReviewLink) {
+        setBusinessName(link.businessName);
+        setGmbReviewLink(link.gmbReviewLink);
+        setLogoUrl(link.logoUrl || "");
+        setBackgroundImageUrl(link.backgroundImageUrl || "");
+        setEditingId(link.id);
+        setShowForm(true);
+        window.scrollTo({ top: 0, behavior: "smooth" });
     }
 
     async function handleDelete(id: string) {
@@ -101,10 +116,19 @@ export default function Dashboard() {
                             </div>
                         </div>
                         <button
-                            onClick={() => setShowForm(!showForm)}
+                            onClick={() => {
+                                if (showForm) {
+                                    setEditingId(null);
+                                    setBusinessName("");
+                                    setGmbReviewLink("");
+                                    setLogoUrl("");
+                                    setBackgroundImageUrl("");
+                                }
+                                setShowForm(!showForm);
+                            }}
                             className={`rounded-xl px-5 py-2.5 text-sm font-semibold transition-all shadow-sm ${showForm
-                                    ? "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                                    : "bg-slate-900 text-white hover:bg-slate-800 hover:shadow-md active:scale-[0.98]"
+                                ? "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                : "bg-slate-900 text-white hover:bg-slate-800 hover:shadow-md active:scale-[0.98]"
                                 }`}
                         >
                             {showForm ? "Cancel" : "Create New Link"}
@@ -192,7 +216,7 @@ export default function Dashboard() {
                                         disabled={loading}
                                         className="relative rounded-xl bg-[#EE314F] px-8 py-3 text-sm font-bold text-white transition-all hover:bg-[#d42a45] hover:shadow-lg hover:shadow-[#EE314F]/20 active:scale-95 disabled:opacity-50 overflow-hidden"
                                     >
-                                        {loading ? "Creating Link..." : "Generate Review Page"}
+                                        {loading ? (editingId ? "Updating..." : "Creating...") : (editingId ? "Update Link" : "Generate Review Page")}
                                     </button>
                                 </div>
                             </form>
@@ -278,8 +302,8 @@ export default function Dashboard() {
                                         <button
                                             onClick={() => copyToClipboard(link.slug)}
                                             className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition-all ${copySuccess === link.slug
-                                                    ? "bg-green-50 text-green-600 border border-green-100"
-                                                    : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 hover:border-slate-300"
+                                                ? "bg-green-50 text-green-600 border border-green-100"
+                                                : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 hover:border-slate-300"
                                                 }`}
                                         >
                                             {copySuccess === link.slug ? (
@@ -297,6 +321,15 @@ export default function Dashboard() {
                                                     <span>Copy Link</span>
                                                 </>
                                             )}
+                                        </button>
+
+                                        <button
+                                            onClick={() => handleEdit(link)}
+                                            className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition-all hover:bg-slate-50 hover:text-slate-900"
+                                        >
+                                            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                            </svg>
                                         </button>
 
                                         <a

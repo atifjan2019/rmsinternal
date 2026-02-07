@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { getAllLinks, addLink, deleteLink } from '../../lib/storage';
+import { getAllLinks, addLink, deleteLink, updateLink } from '../../lib/storage';
 import { v4 as uuidv4 } from 'uuid';
 import { nanoid } from 'nanoid';
 
@@ -53,5 +53,23 @@ export const DELETE: APIRoute = async ({ url }) => {
         return new Response(JSON.stringify({ message: 'Link deleted' }), { status: 200 });
     } catch (error) {
         return new Response(JSON.stringify({ error: 'Failed to delete link' }), { status: 500 });
+    }
+};
+
+export const PATCH: APIRoute = async ({ request, url }) => {
+    try {
+        const id = url.searchParams.get('id');
+        if (!id) return new Response(JSON.stringify({ error: 'Link ID is required' }), { status: 400 });
+
+        const body = await request.json();
+        const success = await updateLink(id, body);
+
+        if (!success) {
+            return new Response(JSON.stringify({ error: 'Link not found or update failed' }), { status: 404 });
+        }
+
+        return new Response(JSON.stringify({ message: 'Link updated' }), { status: 200 });
+    } catch (error) {
+        return new Response(JSON.stringify({ error: 'Failed to update link' }), { status: 500 });
     }
 };

@@ -97,6 +97,21 @@ export async function deleteLink(id: string): Promise<boolean> {
   return success;
 }
 
+export async function updateLink(
+  id: string,
+  updates: Partial<Omit<ReviewLink, "id" | "createdAt">>
+): Promise<boolean> {
+  const fields = Object.keys(updates);
+  if (fields.length === 0) return false;
+
+  const setClause = fields.map((field) => `${field} = ?`).join(", ");
+  const params = [...Object.values(updates), id];
+  const sql = `UPDATE links SET ${setClause} WHERE id = ?`;
+
+  const { success } = await queryD1(sql, params);
+  return success;
+}
+
 export async function addFeedback(feedback: ReviewFeedback): Promise<ReviewFeedback> {
   const { success } = await queryD1(
     "INSERT INTO feedback (id, linkId, name, email, comment, rating, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)",
