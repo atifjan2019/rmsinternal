@@ -84,9 +84,17 @@ export default function Dashboard() {
     async function handleDelete(id: string) {
         if (!confirm("Are you sure you want to delete this review link?")) return;
 
-        const res = await fetch(`/api/links?id=${id}`, { method: "DELETE" });
-        if (res.ok) {
-            fetchLinks();
+        try {
+            const res = await fetch(`/api/links?id=${id}`, { method: "DELETE" });
+            if (res.ok) {
+                await fetchLinks();
+            } else {
+                const data = await res.json();
+                alert(`Error: ${data.error || 'Failed to delete link'}`);
+            }
+        } catch (error) {
+            console.error("Delete error:", error);
+            alert("An unexpected error occurred while deleting.");
         }
     }
 

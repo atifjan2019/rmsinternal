@@ -49,12 +49,16 @@ export const DELETE: APIRoute = async ({ url }) => {
         const id = url.searchParams.get('id');
         if (!id) return new Response(JSON.stringify({ error: 'Link ID is required' }), { status: 400 });
 
+        console.log("Attempting to delete link:", id);
         const deleted = await deleteLink(id);
+        console.log("Delete result:", deleted);
+
         if (!deleted) return new Response(JSON.stringify({ error: 'Link not found' }), { status: 404 });
 
         return new Response(JSON.stringify({ message: 'Link deleted' }), { status: 200 });
-    } catch (error) {
-        return new Response(JSON.stringify({ error: 'Failed to delete link' }), { status: 500 });
+    } catch (error: any) {
+        console.error("Delete API error:", error.message || error);
+        return new Response(JSON.stringify({ error: error.message || 'Failed to delete link' }), { status: 500 });
     }
 };
 
