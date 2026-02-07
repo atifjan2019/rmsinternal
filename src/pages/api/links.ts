@@ -3,9 +3,10 @@ import { getAllLinks, addLink, deleteLink } from '../../lib/storage';
 import { v4 as uuidv4 } from 'uuid';
 import { nanoid } from 'nanoid';
 
-export const GET: APIRoute = async () => {
+export const GET: APIRoute = async (context) => {
     try {
-        const links = getAllLinks();
+        const runtime = context.locals.runtime;
+        const links = await getAllLinks(runtime);
         return new Response(JSON.stringify(links), {
             status: 200,
             headers: { 'Content-Type': 'application/json' }
@@ -15,8 +16,10 @@ export const GET: APIRoute = async () => {
     }
 };
 
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async (context) => {
     try {
+        const { request } = context;
+        const runtime = context.locals.runtime;
         const body = await request.json();
         const { businessName, gmbReviewLink, logoUrl, backgroundImageUrl } = body;
 
@@ -35,19 +38,21 @@ export const POST: APIRoute = async ({ request }) => {
             createdAt: new Date().toISOString(),
         };
 
-        addLink(newLink);
+        await addLink(newLink, runtime);
         return new Response(JSON.stringify(newLink), { status: 201 });
     } catch (error) {
         return new Response(JSON.stringify({ error: 'Failed to create link' }), { status: 500 });
     }
 };
 
-export const DELETE: APIRoute = async ({ url }) => {
+export const DELETE: APIRoute = async (context) => {
     try {
+        const { url } = context;
+        const runtime = context.locals.runtime;
         const id = url.searchParams.get('id');
         if (!id) return new Response(JSON.stringify({ error: 'Link ID is required' }), { status: 400 });
 
-        const deleted = deleteLink(id);
+        const deleted = await deleteLink(id, runtime);
         if (!deleted) return new Response(JSON.stringify({ error: 'Link not found' }), { status: 404 });
 
         return new Response(JSON.stringify({ message: 'Link deleted' }), { status: 200 });

@@ -8,40 +8,52 @@ export interface ReviewLink {
   createdAt: string;
 }
 
-// In-memory fallback for serverless environments (Cloudflare Pages)
-// Note: This will reset on every function cold start.
-// For production, please configure a database (Cloudflare D1, KV, or Supabase).
-let links: ReviewLink[] = [];
+// Helper to get KV binding
+// In Astro + Cloudflare, KV is available via the request context or locals
+const getKV = (runtime: any) => {
+  return runtime?.env?.LINKS || runtime?.env?.SESSION;
+};
 
-export function getAllLinks(): ReviewLink[] {
-  return links;
+export async function getAllLinks(runtime?: any): Promise<ReviewLink[]> {
+  const KV = getKV(runtime);
+  if (KV) {
+    const data = await KV.get("all_links");
+    return data ? JSON.parse(data) : [];
+  }
+  return (globalThis as any)._links || [];
 }
 
-export function getLinkBySlug(slug: string): ReviewLink | undefined {
+export async function getLinkBySlug(slug: string, runtime?: any): Promise<ReviewLink | undefined> {
+  const links = await getAllLinks(runtime);
   return links.find((link) => link.slug === slug);
 }
 
-export function getLinkById(id: string): ReviewLink | undefined {
-  return links.find((link) => link.id === id);
-}
-
-export function addLink(link: ReviewLink): ReviewLink {
+export async function addLink(link: ReviewLink, runtime?: any): Promise<ReviewLink> {
+  const links = await getAllLinks(runtime);
   links.push(link);
+
+  const KV = getKV(runtime);
+  if (KV) {
+    await KV.put("all_links", JSON.stringify(links));
+  } else {
+    (globalThis as any)._links = links;
+  }
   return link;
 }
 
-export function deleteLink(id: string): boolean {
+export async function deleteLink(id: string, runtime?: any): Promise<boolean> {
+  let links = await getAllLinks(runtime);
   const initialLength = links.length;
   links = links.filter((link) => link.id !== id);
-  return links.length !== initialLength;
-}
 
-export function updateLink(
-  id: string,
-  updates: Partial<Omit<ReviewLink, "id" | "createdAt">>
-): ReviewLink | null {
-  const index = links.findIndex((link) => link.id === id);
-  if (index === -1) return null;
-  links[index] = { ...links[index], ...updates };
-  return links[index];
+  if (links.length !== initialLength) {
+    const KV = getKV(runtime);
+    if (KV) {
+      await KV.put("all_links", JSON.stringify(links));
+    } else {
+      (globalThis as any)._links = links;
+    }
+    return true;
+  }
+  return false;
 }
