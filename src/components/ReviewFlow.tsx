@@ -93,62 +93,64 @@ export default function ReviewFlow({ link }: Props) {
 
     if (step === 'feedback') {
         return (
-            <div className="animate-slide-up text-left">
-                <button
-                    onClick={() => setStep('rating')}
-                    className="mb-6 flex items-center gap-2 text-sm font-semibold text-slate-400 hover:text-slate-600 transition-colors"
-                >
-                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                    </svg>
-                    Change Rating
-                </button>
-
-                <h2 className="text-xl font-bold text-slate-900 mb-2">How can we improve?</h2>
-                <p className="text-sm text-slate-500 mb-8">Please let us know about your experience so we can fix it.</p>
+            <div className="animate-slide-up text-left px-2 sm:px-0">
+                <h2 className="text-xl sm:text-2xl font-bold text-slate-900 mb-1.5">How can we improve?</h2>
+                <p className="text-sm text-slate-500 mb-6 font-medium">Please let us know about your experience so we can fix it.</p>
 
                 <form onSubmit={handleFormSubmit} className="space-y-4">
                     <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-widest mb-1.5 ml-1">Your Name</label>
+                        <label className="block text-[10px] sm:text-xs font-bold text-slate-600 uppercase tracking-widest mb-1 ml-1">Your Name</label>
                         <input
                             required
                             type="text"
                             placeholder="John Doe"
-                            className="w-full rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm text-slate-900 focus:border-[#EE314F]/50 focus:outline-none transition-all"
+                            className="w-full rounded-xl sm:rounded-2xl border border-slate-200 bg-white px-4 py-3 sm:px-5 sm:py-4 text-sm text-slate-900 focus:border-[#FAB005] focus:outline-none transition-all shadow-sm"
                             value={formData.name}
                             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                         />
                     </div>
                     <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-widest mb-1.5 ml-1">Your Email</label>
+                        <label className="block text-[10px] sm:text-xs font-bold text-slate-600 uppercase tracking-widest mb-1 ml-1">Your Email</label>
                         <input
                             required
                             type="email"
                             placeholder="john@example.com"
-                            className="w-full rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm text-slate-900 focus:border-[#EE314F]/50 focus:outline-none transition-all"
+                            className="w-full rounded-xl sm:rounded-2xl border border-slate-200 bg-white px-4 py-3 sm:px-5 sm:py-4 text-sm text-slate-900 focus:border-[#FAB005] focus:outline-none transition-all shadow-sm"
                             value={formData.email}
                             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                         />
                     </div>
                     <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-widest mb-1.5 ml-1">Comments</label>
+                        <label className="block text-[10px] sm:text-xs font-bold text-slate-600 uppercase tracking-widest mb-1 ml-1">Comments</label>
                         <textarea
                             required
-                            rows={4}
+                            rows={3}
                             placeholder="Tell us what went wrong..."
-                            className="w-full rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm text-slate-900 focus:border-[#EE314F]/50 focus:outline-none transition-all resize-none"
+                            className="w-full rounded-xl sm:rounded-2xl border border-slate-200 bg-white px-4 py-3 sm:px-5 sm:py-4 text-sm text-slate-900 focus:border-[#FAB005] focus:outline-none transition-all resize-none shadow-sm"
                             value={formData.comment}
                             onChange={(e) => setFormData({ ...formData, comment: e.target.value })}
                         />
                     </div>
-                    <button
-                        disabled={loading}
-                        type="submit"
-                        className="w-full rounded-2xl bg-slate-900 py-5 text-sm font-bold text-white shadow-lg hover:bg-slate-800 active:scale-[0.98] transition-all disabled:opacity-50"
-                    >
-                        {loading ? 'Submitting...' : 'Submit Feedback'}
-                    </button>
+                    <div className="pt-2">
+                        <button
+                            disabled={loading}
+                            type="submit"
+                            className="w-full rounded-xl sm:rounded-2xl bg-[#FAB005] py-4 sm:py-5 text-sm font-bold text-slate-900 shadow-md hover:bg-[#e6a200] active:scale-[0.98] transition-all disabled:opacity-50"
+                        >
+                            {loading ? 'Submitting...' : 'Submit Feedback'}
+                        </button>
+                    </div>
                 </form>
+
+                <button
+                    onClick={() => setStep('rating')}
+                    className="mt-6 w-full flex items-center justify-center gap-2 text-xs font-bold text-slate-400 hover:text-slate-600 transition-colors uppercase tracking-widest"
+                >
+                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" />
+                    </svg>
+                    Change Rating
+                </button>
             </div>
         );
     }
