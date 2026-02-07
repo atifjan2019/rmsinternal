@@ -170,7 +170,7 @@ export default function ReviewFlow({ link }: Props) {
                         <div className="relative">
                             <div className="absolute -inset-2 rounded-full bg-[#FAB005]/20 scale-0 group-hover:scale-100 transition-transform duration-300 blur-md"></div>
                             <svg
-                                className={`relative h-11 w-11 sm:h-14 sm:w-14 transition-all duration-300 group-hover:scale-110 group-hover:-translate-y-1 group-active:scale-95 ${rating && s <= rating ? "text-[#FAB005]" : "text-[#FAB005]/20"
+                                className={`relative h-11 w-11 sm:h-14 sm:w-14 transition-all duration-300 group-hover:scale-110 group-hover:-translate-y-1 group-active:scale-95 ${rating && s <= rating ? "text-[#FAB005]" : "text-[#FAB005]/60"
                                     } group-hover:text-[#FAB005]`}
                                 fill="currentColor"
                                 viewBox="0 0 24 24"
