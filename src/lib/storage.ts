@@ -76,6 +76,7 @@ async function queryD1(sql: string, params: any[] = []) {
 
 export async function getAllLinks(): Promise<ReviewLink[]> {
   const { results } = await queryD1("SELECT * FROM links ORDER BY createdAt DESC");
+  if (results.length > 0) console.log("First Link Preview:", JSON.stringify(results[0]));
   return results as ReviewLink[];
 }
 
@@ -103,7 +104,9 @@ export async function addLink(link: ReviewLink): Promise<ReviewLink> {
 }
 
 export async function deleteLink(id: string): Promise<boolean> {
+  console.log("storage: deleteLink called with id:", id);
   const { success, changes } = await queryD1("DELETE FROM links WHERE id = ?", [id]);
+  console.log(`storage: deleteLink success=${success}, changes=${changes}`);
   return success && (changes ?? 0) > 0;
 }
 
