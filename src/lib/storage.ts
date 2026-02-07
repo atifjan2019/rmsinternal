@@ -28,9 +28,11 @@ const CF_DATABASE_ID = process.env.CF_DATABASE_ID || "c5f98e64-c766-400f-a15c-b0
 const CF_API_TOKEN = process.env.CF_API_TOKEN;
 
 async function queryD1(sql: string, params: any[] = []) {
-  if (!CF_ACCOUNT_ID || !CF_API_TOKEN) {
-    console.error("Missing Cloudflare Environment Variables (CF_ACCOUNT_ID or CF_API_TOKEN)");
-    return { results: [], success: false };
+  if (!CF_ACCOUNT_ID) {
+    throw new Error("Missing CF_ACCOUNT_ID environment variable.");
+  }
+  if (!CF_API_TOKEN) {
+    throw new Error("Missing CF_API_TOKEN environment variable.");
   }
 
   const url = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/d1/database/${CF_DATABASE_ID}/query`;
@@ -42,16 +44,19 @@ async function queryD1(sql: string, params: any[] = []) {
         'Authorization': `Bearer ${CF_API_TOKEN}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        sql,
-        params,
-      }),
+      body: JSON.stringify({ sql, params }),
     });
 
     const data = await response.json();
+
     if (!data.success) {
-      console.error("D1 API Error:", data.errors);
+      console.error("D1 API Error Response:", JSON.stringify(data.errors));
       return { results: [], success: false };
+    }
+
+    if (!data.result || !data.result[0]) {
+      console.warn("D1 API returned success but no result array.");
+      return { results: [], success: true };
     }
 
     return {
@@ -59,8 +64,8 @@ async function queryD1(sql: string, params: any[] = []) {
       success: true
     };
   } catch (error) {
-    console.error("Fetch Error for D1:", error);
-    return { results: [], success: false };
+    console.error("Critical D1 Connection Error:", error);
+    throw error; // Re-throw so Astro sees the 500 with a clear message in logs
   }
 }
 
