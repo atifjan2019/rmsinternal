@@ -8,6 +8,16 @@ export interface ReviewLink {
   createdAt: string;
 }
 
+export interface ReviewFeedback {
+  id: string;
+  linkId: string;
+  name: string;
+  email: string;
+  comment: string;
+  rating: number;
+  createdAt: string;
+}
+
 /**
  * CLOUDFLARE D1 via HTTP API (Vercel Compatible)
  * This allows Vercel-hosted Astro to talk to Cloudflare D1.
@@ -85,4 +95,22 @@ export async function addLink(link: ReviewLink): Promise<ReviewLink> {
 export async function deleteLink(id: string): Promise<boolean> {
   const { success } = await queryD1("DELETE FROM links WHERE id = ?", [id]);
   return success;
+}
+
+export async function addFeedback(feedback: ReviewFeedback): Promise<ReviewFeedback> {
+  const { success } = await queryD1(
+    "INSERT INTO feedback (id, linkId, name, email, comment, rating, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    [
+      feedback.id,
+      feedback.linkId,
+      feedback.name,
+      feedback.email,
+      feedback.comment,
+      feedback.rating,
+      feedback.createdAt
+    ]
+  );
+
+  if (!success) throw new Error("Failed to insert feedback into D1");
+  return feedback;
 }
