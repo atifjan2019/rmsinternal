@@ -1,3 +1,4 @@
+/// <reference types="astro/client" />
 export interface ReviewLink {
   id: string;
   slug: string;
@@ -23,9 +24,9 @@ export interface ReviewFeedback {
  * This allows Vercel-hosted Astro to talk to Cloudflare D1.
  */
 
-const CF_ACCOUNT_ID = process.env.CF_ACCOUNT_ID || "cd15ad0da57162f7271e52faac2dda55";
-const CF_DATABASE_ID = process.env.CF_DATABASE_ID || "c5f98e64-c766-400f-a15c-b0e7288fe1ee";
-const CF_API_TOKEN = process.env.CF_API_TOKEN;
+const CF_ACCOUNT_ID = import.meta.env.CF_ACCOUNT_ID || "cd15ad0da57162f7271e52faac2dda55";
+const CF_DATABASE_ID = import.meta.env.CF_DATABASE_ID || "c5f98e64-c766-400f-a15c-b0e7288fe1ee";
+const CF_API_TOKEN = import.meta.env.CF_API_TOKEN;
 
 async function queryD1(sql: string, params: any[] = []) {
   if (!CF_ACCOUNT_ID) {

@@ -92,34 +92,34 @@ export default function ReviewFlow({ link }: Props) {
 
                 <form onSubmit={handleFormSubmit} className="space-y-4">
                     <div>
-                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Your Name</label>
+                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-widest mb-1.5 ml-1">Your Name</label>
                         <input
                             required
                             type="text"
                             placeholder="John Doe"
-                            className="w-full rounded-2xl border border-slate-100 bg-slate-50/50 px-5 py-4 text-sm focus:border-[#EE314F]/50 focus:bg-white focus:outline-none transition-all"
+                            className="w-full rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm text-slate-900 focus:border-[#EE314F]/50 focus:outline-none transition-all"
                             value={formData.name}
                             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                         />
                     </div>
                     <div>
-                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Your Email</label>
+                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-widest mb-1.5 ml-1">Your Email</label>
                         <input
                             required
                             type="email"
                             placeholder="john@example.com"
-                            className="w-full rounded-2xl border border-slate-100 bg-slate-50/50 px-5 py-4 text-sm focus:border-[#EE314F]/50 focus:bg-white focus:outline-none transition-all"
+                            className="w-full rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm text-slate-900 focus:border-[#EE314F]/50 focus:outline-none transition-all"
                             value={formData.email}
                             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                         />
                     </div>
                     <div>
-                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Comments</label>
+                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-widest mb-1.5 ml-1">Comments</label>
                         <textarea
                             required
                             rows={4}
                             placeholder="Tell us what went wrong..."
-                            className="w-full rounded-2xl border border-slate-100 bg-slate-50/50 px-5 py-4 text-sm focus:border-[#EE314F]/50 focus:bg-white focus:outline-none transition-all resize-none"
+                            className="w-full rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm text-slate-900 focus:border-[#EE314F]/50 focus:outline-none transition-all resize-none"
                             value={formData.comment}
                             onChange={(e) => setFormData({ ...formData, comment: e.target.value })}
                         />
@@ -138,7 +138,7 @@ export default function ReviewFlow({ link }: Props) {
 
     return (
         <div className="animate-slide-up">
-            <p className="mb-8 text-base sm:text-lg text-slate-500 leading-relaxed max-w-[280px] mx-auto">
+            <p className="mb-8 text-base sm:text-lg text-slate-700 font-medium leading-relaxed max-w-[280px] mx-auto">
                 We value your feedback! Rate your experience with us.
             </p>
 
@@ -151,10 +151,10 @@ export default function ReviewFlow({ link }: Props) {
                         className="group flex flex-col items-center gap-1 focus:outline-none"
                     >
                         <div className="relative">
-                            <div className="absolute -inset-2 rounded-full bg-[#EE314F]/20 scale-0 group-hover:scale-100 transition-transform duration-300 blur-md"></div>
+                            <div className="absolute -inset-2 rounded-full bg-[#FAB005]/20 scale-0 group-hover:scale-100 transition-transform duration-300 blur-md"></div>
                             <svg
-                                className={`relative h-11 w-11 sm:h-14 sm:w-14 transition-all duration-300 group-hover:scale-110 group-hover:-translate-y-1 group-active:scale-95 ${rating && s <= rating ? "text-[#EE314F]" : "text-slate-200"
-                                    } group-hover:text-[#EE314F]`}
+                                className={`relative h-11 w-11 sm:h-14 sm:w-14 transition-all duration-300 group-hover:scale-110 group-hover:-translate-y-1 group-active:scale-95 ${rating && s <= rating ? "text-[#FAB005]" : "text-slate-200"
+                                    } group-hover:text-[#FAB005]`}
                                 fill="currentColor"
                                 viewBox="0 0 24 24"
                             >
