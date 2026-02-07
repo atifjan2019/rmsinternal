@@ -5,10 +5,11 @@
         "nodejs_compat"
     ],
     "pages_build_output_dir": "dist",
-    "kv_namespaces": [
+    "d1_databases": [
         {
-            "binding": "LINKS",
-            "id": "placeholder-id"
+            "binding": "DB",
+            "database_name": "rmsinternal",
+            "database_id": "c5f98e64-c766-400f-a15c-b0e7288fe1ee"
         }
     ]
 }

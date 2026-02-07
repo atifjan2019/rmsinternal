@@ -8,8 +8,7 @@ if (!slug) {
   return Astro.redirect('/404');
 }
 
-const runtime = Astro.locals.runtime;
-const link = await getLinkBySlug(slug, runtime);
+const link = await getLinkBySlug(slug);
 
 if (!link) {
   return Astro.redirect('/404');

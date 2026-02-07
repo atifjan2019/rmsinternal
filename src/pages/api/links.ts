@@ -5,7 +5,7 @@ import { nanoid } from 'nanoid';
 
 export const GET: APIRoute = async (context) => {
     try {
-        const runtime = context.locals.runtime;
+        const runtime = (context.locals as any).runtime;
         const links = await getAllLinks(runtime);
         return new Response(JSON.stringify(links), {
             status: 200,
@@ -19,7 +19,7 @@ export const GET: APIRoute = async (context) => {
 export const POST: APIRoute = async (context) => {
     try {
         const { request } = context;
-        const runtime = context.locals.runtime;
+        const runtime = (context.locals as any).runtime;
         const body = await request.json();
         const { businessName, gmbReviewLink, logoUrl, backgroundImageUrl } = body;
 
@@ -48,7 +48,7 @@ export const POST: APIRoute = async (context) => {
 export const DELETE: APIRoute = async (context) => {
     try {
         const { url } = context;
-        const runtime = context.locals.runtime;
+        const runtime = (context.locals as any).runtime;
         const id = url.searchParams.get('id');
         if (!id) return new Response(JSON.stringify({ error: 'Link ID is required' }), { status: 400 });
 
