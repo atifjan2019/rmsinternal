@@ -29,55 +29,56 @@ const CF_DATABASE_ID = import.meta.env.CF_DATABASE_ID || "c5f98e64-c766-400f-a15
 const CF_API_TOKEN = import.meta.env.CF_API_TOKEN;
 
 async function queryD1(sql: string, params: any[] = []) {
-  if (!CF_ACCOUNT_ID) {
-    throw new Error("Missing CF_ACCOUNT_ID environment variable.");
-  }
-  if (!CF_API_TOKEN) {
-    throw new Error("Missing CF_API_TOKEN environment variable.");
+  if (!CF_ACCOUNT_ID || !CF_API_TOKEN) {
+    throw new Error("Missing Cloudflare D1 environment variables.");
   }
 
   const url = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/d1/database/${CF_DATABASE_ID}/query`;
 
   try {
     const response = await fetch(url, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Authorization': `Bearer ${CF_API_TOKEN}`,
-        'Content-Type': 'application/json',
+        "Authorization": `Bearer ${CF_API_TOKEN}`,
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({ sql, params }),
     });
 
     const data = await response.json();
-    console.log("D1 API Raw Response:", JSON.stringify(data));
 
     if (!data.success) {
-      console.error("D1 API Error Response:", JSON.stringify(data.errors));
+      console.error("D1 Error:", JSON.stringify(data.errors));
       return { results: [], success: false, changes: 0 };
     }
 
-    const resultObj = data.result && data.result[0] ? data.result[0] : { results: [], meta: {} };
-    const changes = resultObj.meta?.changes || 0;
-
-    if (!sql.toLowerCase().startsWith("select") && changes !== undefined) {
-      console.log(`D1 Rows Affected: ${changes}`);
-    }
+    const result = data.result && data.result[0] ? data.result[0] : { results: [], meta: {} };
+    const changes = result.meta?.changes || 0;
 
     return {
-      results: resultObj.results || [],
+      results: result.results || [],
       success: true,
       changes: changes
     };
   } catch (error) {
-    console.error("Critical D1 Connection Error:", error);
+    console.error("D1 Connection Error:", error);
     throw error;
   }
 }
 
 export async function getAllLinks(): Promise<ReviewLink[]> {
   const { results } = await queryD1("SELECT * FROM links ORDER BY createdAt DESC");
-  if (results.length > 0) console.log("First Link Preview:", JSON.stringify(results[0]));
-  return results as ReviewLink[];
+
+  // Robust mapping for SQLite/D1 case-insensitivity
+  return results.map((r: any) => ({
+    id: r.id || r.ID,
+    slug: r.slug || r.SLUG,
+    businessName: r.businessName || r.businessname || r.BUSINESSNAME,
+    gmbReviewLink: r.gmbReviewLink || r.gmbreviewlink || r.GMBREVIEWLINK,
+    logoUrl: r.logoUrl || r.logourl || r.LOGOURL || "",
+    backgroundImageUrl: r.backgroundImageUrl || r.backgroundimageurl || r.BACKGROUNDIMAGEURL || "",
+    createdAt: r.createdAt || r.createdat || r.CREATEDAT
+  })) as ReviewLink[];
 }
 
 export async function getLinkBySlug(slug: string): Promise<ReviewLink | undefined> {
@@ -104,10 +105,10 @@ export async function addLink(link: ReviewLink): Promise<ReviewLink> {
 }
 
 export async function deleteLink(id: string): Promise<boolean> {
-  console.log("storage: deleteLink called with id:", id);
   const { success, changes } = await queryD1("DELETE FROM links WHERE id = ?", [id]);
-  console.log(`storage: deleteLink success=${success}, changes=${changes}`);
-  return success && (changes ?? 0) > 0;
+  // Log for debugging on the server
+  console.log(`Delete operation: success=${success}, changes=${changes}, id=${id}`);
+  return success;
 }
 
 export async function updateLink(
