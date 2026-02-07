@@ -3,10 +3,9 @@ import { getAllLinks, addLink, deleteLink } from '../../lib/storage';
 import { v4 as uuidv4 } from 'uuid';
 import { nanoid } from 'nanoid';
 
-export const GET: APIRoute = async (context) => {
+export const GET: APIRoute = async () => {
     try {
-        const runtime = (context.locals as any).runtime;
-        const links = await getAllLinks(runtime);
+        const links = await getAllLinks();
         return new Response(JSON.stringify(links), {
             status: 200,
             headers: { 'Content-Type': 'application/json' }
@@ -16,10 +15,8 @@ export const GET: APIRoute = async (context) => {
     }
 };
 
-export const POST: APIRoute = async (context) => {
+export const POST: APIRoute = async ({ request }) => {
     try {
-        const { request } = context;
-        const runtime = (context.locals as any).runtime;
         const body = await request.json();
         const { businessName, gmbReviewLink, logoUrl, backgroundImageUrl } = body;
 
@@ -38,21 +35,19 @@ export const POST: APIRoute = async (context) => {
             createdAt: new Date().toISOString(),
         };
 
-        await addLink(newLink, runtime);
+        await addLink(newLink);
         return new Response(JSON.stringify(newLink), { status: 201 });
     } catch (error) {
         return new Response(JSON.stringify({ error: 'Failed to create link' }), { status: 500 });
     }
 };
 
-export const DELETE: APIRoute = async (context) => {
+export const DELETE: APIRoute = async ({ url }) => {
     try {
-        const { url } = context;
-        const runtime = (context.locals as any).runtime;
         const id = url.searchParams.get('id');
         if (!id) return new Response(JSON.stringify({ error: 'Link ID is required' }), { status: 400 });
 
-        const deleted = await deleteLink(id, runtime);
+        const deleted = await deleteLink(id);
         if (!deleted) return new Response(JSON.stringify({ error: 'Link not found' }), { status: 404 });
 
         return new Response(JSON.stringify({ message: 'Link deleted' }), { status: 200 });
