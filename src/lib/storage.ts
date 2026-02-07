@@ -49,6 +49,7 @@ async function queryD1(sql: string, params: any[] = []) {
     });
 
     const data = await response.json();
+    console.log("D1 API Raw Response:", JSON.stringify(data));
 
     if (!data.success) {
       console.error("D1 API Error Response:", JSON.stringify(data.errors));
