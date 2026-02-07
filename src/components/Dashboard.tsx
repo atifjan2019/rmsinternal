@@ -60,6 +60,9 @@ export default function Dashboard() {
                 setShowForm(false);
                 setEditingId(null);
                 fetchLinks();
+            } else {
+                const data = await res.json();
+                alert(`Error: ${data.error || 'Failed to save link'}`);
             }
         } catch (error) {
             console.error(`Failed to ${editingId ? 'update' : 'create'} link:`, error);

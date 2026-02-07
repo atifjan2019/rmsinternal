@@ -36,9 +36,11 @@ export const POST: APIRoute = async ({ request }) => {
         };
 
         await addLink(newLink);
+        console.log("Successfully created link:", slug);
         return new Response(JSON.stringify(newLink), { status: 201 });
-    } catch (error) {
-        return new Response(JSON.stringify({ error: 'Failed to create link' }), { status: 500 });
+    } catch (error: any) {
+        console.error("Link creation error:", error.message || error);
+        return new Response(JSON.stringify({ error: error.message || 'Failed to create link' }), { status: 500 });
     }
 };
 
