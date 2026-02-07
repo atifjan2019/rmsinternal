@@ -79,6 +79,21 @@ const hasLogo = !!link.logoUrl;
 
         {/* Review Flow Component */}
         <ReviewFlow client:load link={link} />
+
+        {/* Footer */}
+        <footer class="mt-8 pt-6 border-t border-slate-100 flex justify-center">
+          <p class="text-[10px] sm:text-xs font-medium text-slate-400">
+            {new Date().getFullYear()} Copyright. Developed by 
+            <a 
+              href={`https://webspires.co.uk?utm_source=${encodeURIComponent(link.businessName)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="font-bold text-slate-600 hover:text-[#FAB005] transition-colors"
+            >
+              webspires
+            </a>
+          </p>
+        </footer>
       </div>
     </div>
   </div>
