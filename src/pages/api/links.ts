@@ -1,9 +1,20 @@
 import type { APIRoute } from 'astro';
 import { getAllLinks, addLink, deleteLink, updateLink } from '../../lib/storage';
+import { verifySession } from '../../lib/auth';
 import { v4 as uuidv4 } from 'uuid';
 import { nanoid } from 'nanoid';
 
-export const GET: APIRoute = async () => {
+// Helper to check auth
+async function checkAuth(request: Request): Promise<boolean> {
+    const cookies = request.headers.get('cookie') || '';
+    const match = cookies.match(/admin_session=([^;]+)/);
+    const token = match ? match[1] : undefined;
+    const user = await verifySession(token);
+    return !!user;
+}
+
+export const GET: APIRoute = async ({ request }) => {
+    // GET is public (needed for review pages to load)
     try {
         const links = await getAllLinks();
         return new Response(JSON.stringify(links), {
@@ -16,6 +27,11 @@ export const GET: APIRoute = async () => {
 };
 
 export const POST: APIRoute = async ({ request }) => {
+    // Require auth for creating links
+    if (!(await checkAuth(request))) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+    }
+
     try {
         const body = await request.json();
         const { businessName, gmbReviewLink, logoUrl, backgroundImageUrl } = body;
@@ -44,7 +60,12 @@ export const POST: APIRoute = async ({ request }) => {
     }
 };
 
-export const DELETE: APIRoute = async ({ url }) => {
+export const DELETE: APIRoute = async ({ request, url }) => {
+    // Require auth for deleting links
+    if (!(await checkAuth(request))) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+    }
+
     try {
         const id = url.searchParams.get('id');
         if (!id) return new Response(JSON.stringify({ error: 'Link ID is required' }), { status: 400 });
@@ -63,6 +84,11 @@ export const DELETE: APIRoute = async ({ url }) => {
 };
 
 export const PATCH: APIRoute = async ({ request, url }) => {
+    // Require auth for updating links
+    if (!(await checkAuth(request))) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+    }
+
     try {
         const id = url.searchParams.get('id');
         if (!id) return new Response(JSON.stringify({ error: 'Link ID is required' }), { status: 400 });

@@ -21,16 +21,16 @@ export interface ReviewFeedback {
 
 /**
  * CLOUDFLARE D1 via HTTP API (Vercel Compatible)
- * This allows Vercel-hosted Astro to talk to Cloudflare D1.
+ * Security: All credentials MUST be set via environment variables
  */
 
-const CF_ACCOUNT_ID = import.meta.env.CF_ACCOUNT_ID || "cd15ad0da57162f7271e52faac2dda55";
-const CF_DATABASE_ID = import.meta.env.CF_DATABASE_ID || "c5f98e64-c766-400f-a15c-b0e7288fe1ee";
+const CF_ACCOUNT_ID = import.meta.env.CF_ACCOUNT_ID;
+const CF_DATABASE_ID = import.meta.env.CF_DATABASE_ID;
 const CF_API_TOKEN = import.meta.env.CF_API_TOKEN;
 
 async function queryD1(sql: string, params: any[] = []) {
-  if (!CF_ACCOUNT_ID || !CF_API_TOKEN) {
-    throw new Error("Missing Cloudflare D1 environment variables.");
+  if (!CF_ACCOUNT_ID || !CF_API_TOKEN || !CF_DATABASE_ID) {
+    throw new Error("Missing Cloudflare D1 environment variables (CF_ACCOUNT_ID, CF_DATABASE_ID, CF_API_TOKEN).");
   }
 
   const url = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/d1/database/${CF_DATABASE_ID}/query`;
@@ -106,7 +106,6 @@ export async function addLink(link: ReviewLink): Promise<ReviewLink> {
 
 export async function deleteLink(id: string): Promise<boolean> {
   const { success, changes } = await queryD1("DELETE FROM links WHERE id = ?", [id]);
-  // Log for debugging on the server
   console.log(`Delete operation: success=${success}, changes=${changes}, id=${id}`);
   return success;
 }

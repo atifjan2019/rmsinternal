@@ -1,18 +1,22 @@
 import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
 
-const SECRET_KEY = new TextEncoder().encode(
-    import.meta.env.JWT_SECRET || "super-secret-key-change-this"
-);
-
-const CF_ACCOUNT_ID = import.meta.env.CF_ACCOUNT_ID || "cd15ad0da57162f7271e52faac2dda55";
-const CF_DATABASE_ID = import.meta.env.CF_DATABASE_ID || "c5f98e64-c766-400f-a15c-b0e7288fe1ee";
+// Security: All credentials MUST be set via environment variables
+const JWT_SECRET = import.meta.env.JWT_SECRET;
+const CF_ACCOUNT_ID = import.meta.env.CF_ACCOUNT_ID;
+const CF_DATABASE_ID = import.meta.env.CF_DATABASE_ID;
 const CF_API_TOKEN = import.meta.env.CF_API_TOKEN;
+
+if (!JWT_SECRET) {
+    console.warn("WARNING: JWT_SECRET not set. Authentication will fail in production.");
+}
+
+const SECRET_KEY = new TextEncoder().encode(JWT_SECRET || "dev-only-secret");
 
 // D1 HTTP API Query Helper
 async function queryD1(sql: string, params: any[] = []) {
-    if (!CF_ACCOUNT_ID || !CF_API_TOKEN) {
-        throw new Error("Missing Cloudflare D1 environment variables.");
+    if (!CF_ACCOUNT_ID || !CF_API_TOKEN || !CF_DATABASE_ID) {
+        throw new Error("Missing Cloudflare D1 environment variables (CF_ACCOUNT_ID, CF_DATABASE_ID, CF_API_TOKEN).");
     }
 
     const url = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/d1/database/${CF_DATABASE_ID}/query`;
@@ -87,17 +91,5 @@ export async function createUser(username: string, password: string): Promise<bo
         "INSERT INTO users (id, username, password, created_at) VALUES (?, ?, ?, ?)",
         [crypto.randomUUID(), username, hashedPassword, Date.now()]
     );
-    return success;
-}
-
-export async function initializeUsersTable(): Promise<boolean> {
-    const { success } = await queryD1(`
-    CREATE TABLE IF NOT EXISTS users (
-      id TEXT PRIMARY KEY,
-      username TEXT UNIQUE,
-      password TEXT,
-      created_at INTEGER
-    )
-  `);
     return success;
 }
