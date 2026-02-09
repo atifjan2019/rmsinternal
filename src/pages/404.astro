@@ -1,0 +1,90 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Page Not Found - Review System">
+  <div class="error-container">
+    <div class="error-content">
+      <div class="error-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="12" cy="12" r="10"></circle>
+          <path d="M12 8v4m0 4h.01"></path>
+        </svg>
+      </div>
+      <h1>404</h1>
+      <h2>Page Not Found</h2>
+      <p>The page you're looking for doesn't exist or has been moved.</p>
+      <a href="/" class="home-btn">Go Home</a>
+    </div>
+  </div>
+</Layout>
+
+<style>
+  .error-container {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    background: linear-gradient(135deg, #0f0f23 0%, #1a1a3e 50%, #0d0d1f 100%);
+    font-family: 'Inter', sans-serif;
+  }
+
+  .error-content {
+    text-align: center;
+    max-width: 400px;
+  }
+
+  .error-icon {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 2rem;
+    color: #EE314F;
+    opacity: 0.8;
+  }
+
+  .error-icon svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  h1 {
+    font-size: 6rem;
+    font-weight: 800;
+    color: white;
+    margin: 0;
+    line-height: 1;
+    letter-spacing: -0.05em;
+  }
+
+  h2 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9);
+    margin: 0.5rem 0 1rem;
+  }
+
+  p {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 1rem;
+    margin-bottom: 2rem;
+  }
+
+  .home-btn {
+    display: inline-block;
+    padding: 1rem 2rem;
+    background: linear-gradient(135deg, #EE314F 0%, #c41e3a 100%);
+    color: white;
+    text-decoration: none;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    transition: all 0.3s ease;
+    box-shadow: 0 10px 30px -10px rgba(238, 49, 79, 0.5);
+  }
+
+  .home-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 15px 40px -10px rgba(238, 49, 79, 0.6);
+  }
+</style>

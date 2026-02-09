@@ -1,3 +1,15 @@
 ---
+import Layout from '../layouts/Layout.astro';
+import { verifySession } from '../lib/auth';
+
+// Check if already logged in
+const cookie = Astro.cookies.get("admin_session")?.value;
+const user = await verifySession(cookie);
+
+// Redirect logged in users to dashboard, otherwise to login
+if (user) {
+  return Astro.redirect("/dashboard");
+} else {
+  return Astro.redirect("/login");
+}
 ---
-<meta http-equiv="refresh" content="0;url=/dashboard" />
