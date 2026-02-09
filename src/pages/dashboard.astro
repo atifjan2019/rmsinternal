@@ -1,8 +1,35 @@
+```
 ---
 import Layout from '../layouts/Layout.astro';
-import DashboardComponent from '../components/Dashboard';
+import { verifySession } from '../lib/auth';
+
+const cookie = Astro.cookies.get("admin_session")?.value;
+const user = await verifySession(cookie);
+
+if (!user) {
+  return Astro.redirect("/login");
+}
 ---
 
-<Layout title="Dashboard | Review Management System">
-	<DashboardComponent client:load />
+<Layout title="Dashboard - Review System">
+  <div class="p-8">
+    <div class="flex justify-between items-center mb-8">
+        <h1 class="text-3xl font-bold">Dashboard</h1>
+        <button id="logout-btn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded">
+            Logout
+        </button>
+    </div>
+    
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Dashboard content will go here -->
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('logout-btn')?.addEventListener('click', async () => {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      window.location.href = '/login';
+    });
+  </script>
 </Layout>
+```
