@@ -1,20 +1,12 @@
 import type { APIRoute } from "astro";
-import { verifyPassword, createSession } from "../../../lib/auth";
+import { getUserByUsername, verifyPassword, createSession } from "../../../lib/auth";
 
-interface User {
-    id: string;
-    username: string;
-    password: string;
-}
-
-export const POST: APIRoute = async ({ request, locals }) => {
+export const POST: APIRoute = async ({ request }) => {
     try {
-        const { username, password } = await request.json() as any;
-        // @ts-ignore - Cloudflare runtime bindings
-        const DB = locals.runtime.env.DB;
+        const { username, password } = await request.json();
 
         // 1. Find user
-        const user = await DB.prepare("SELECT * FROM users WHERE username = ?").bind(username).first() as User | null;
+        const user = await getUserByUsername(username);
 
         if (!user) {
             return new Response(JSON.stringify({ error: "Invalid credentials" }), { status: 401 });
@@ -38,8 +30,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
         );
 
         return new Response(JSON.stringify({ success: true }), { status: 200, headers });
-    } catch (error) {
+    } catch (error: any) {
         console.error(error);
-        return new Response(JSON.stringify({ error: "Internal Server Error" }), { status: 500 });
+        return new Response(JSON.stringify({ error: error.message || "Internal Server Error" }), { status: 500 });
     }
 };

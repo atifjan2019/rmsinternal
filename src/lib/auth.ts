@@ -5,6 +5,39 @@ const SECRET_KEY = new TextEncoder().encode(
     import.meta.env.JWT_SECRET || "super-secret-key-change-this"
 );
 
+const CF_ACCOUNT_ID = import.meta.env.CF_ACCOUNT_ID || "cd15ad0da57162f7271e52faac2dda55";
+const CF_DATABASE_ID = import.meta.env.CF_DATABASE_ID || "c5f98e64-c766-400f-a15c-b0e7288fe1ee";
+const CF_API_TOKEN = import.meta.env.CF_API_TOKEN;
+
+// D1 HTTP API Query Helper
+async function queryD1(sql: string, params: any[] = []) {
+    if (!CF_ACCOUNT_ID || !CF_API_TOKEN) {
+        throw new Error("Missing Cloudflare D1 environment variables.");
+    }
+
+    const url = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/d1/database/${CF_DATABASE_ID}/query`;
+
+    const response = await fetch(url, {
+        method: "POST",
+        headers: {
+            "Authorization": `Bearer ${CF_API_TOKEN}`,
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ sql, params }),
+    });
+
+    const data = await response.json();
+
+    if (!data.success) {
+        console.error("D1 Error:", JSON.stringify(data.errors));
+        return { results: [], success: false };
+    }
+
+    const result = data.result && data.result[0] ? data.result[0] : { results: [] };
+    return { results: result.results || [], success: true };
+}
+
+// Password utilities
 export async function hashPassword(password: string): Promise<string> {
     return await bcrypt.hash(password, 10);
 }
@@ -13,6 +46,7 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
     return await bcrypt.compare(password, hash);
 }
 
+// JWT utilities
 export async function createSession(payload: any) {
     return await new SignJWT(payload)
         .setProtectedHeader({ alg: "HS256" })
@@ -21,11 +55,49 @@ export async function createSession(payload: any) {
         .sign(SECRET_KEY);
 }
 
-export async function verifySession(token: string) {
+export async function verifySession(token: string | undefined) {
+    if (!token) return null;
     try {
         const { payload } = await jwtVerify(token, SECRET_KEY);
         return payload;
     } catch (error) {
         return null;
     }
+}
+
+// User management
+export interface User {
+    id: string;
+    username: string;
+    password: string;
+    created_at: number;
+}
+
+export async function getUserByUsername(username: string): Promise<User | null> {
+    const { results } = await queryD1(
+        "SELECT * FROM users WHERE username = ? LIMIT 1",
+        [username]
+    );
+    return results[0] as User | null;
+}
+
+export async function createUser(username: string, password: string): Promise<boolean> {
+    const hashedPassword = await hashPassword(password);
+    const { success } = await queryD1(
+        "INSERT INTO users (id, username, password, created_at) VALUES (?, ?, ?, ?)",
+        [crypto.randomUUID(), username, hashedPassword, Date.now()]
+    );
+    return success;
+}
+
+export async function initializeUsersTable(): Promise<boolean> {
+    const { success } = await queryD1(`
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      username TEXT UNIQUE,
+      password TEXT,
+      created_at INTEGER
+    )
+  `);
+    return success;
 }

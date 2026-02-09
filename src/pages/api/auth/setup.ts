@@ -1,46 +1,30 @@
 import type { APIRoute } from "astro";
-import { hashPassword } from "../../../lib/auth";
+import { initializeUsersTable, getUserByUsername, createUser, hashPassword } from "../../../lib/auth";
 
-export const GET: APIRoute = async ({ locals }) => {
-    // @ts-ignore - Cloudflare runtime bindings
-    const DB = locals.runtime.env.DB;
-
+export const GET: APIRoute = async () => {
     try {
         // 1. Create Users Table
-        await DB.prepare(`
-            CREATE TABLE IF NOT EXISTS users (
-                id TEXT PRIMARY KEY,
-                username TEXT UNIQUE,
-                password TEXT,
-                created_at INTEGER
-            );
-        `).run();
+        await initializeUsersTable();
 
-        const messages = [];
+        const messages: string[] = [];
 
         // 2. Create Default Admin User
-        let admin = await DB.prepare("SELECT * FROM users WHERE username = ?").bind("admin").first();
+        const admin = await getUserByUsername("admin");
         if (!admin) {
-            const hashedPassword = await hashPassword("admin123");
-            await DB.prepare(
-                "INSERT INTO users (id, username, password, created_at) VALUES (?, ?, ?, ?)"
-            ).bind(crypto.randomUUID(), "admin", hashedPassword, Date.now()).run();
+            await createUser("admin", "admin123");
             messages.push("Created default admin user.");
         } else {
             messages.push("Admin user already exists.");
         }
 
         // 3. Create Requested User
-        const targetUserEmail = "atifjan2019@gmail.com";
-        let targetUser = await DB.prepare("SELECT * FROM users WHERE username = ?").bind(targetUserEmail).first();
+        const targetEmail = "atifjan2019@gmail.com";
+        const targetUser = await getUserByUsername(targetEmail);
         if (!targetUser) {
-            const hashedPassword = await hashPassword("Test@#1234$");
-            await DB.prepare(
-                "INSERT INTO users (id, username, password, created_at) VALUES (?, ?, ?, ?)"
-            ).bind(crypto.randomUUID(), targetUserEmail, hashedPassword, Date.now()).run();
-            messages.push(`Created user ${targetUserEmail}.`);
+            await createUser(targetEmail, "Test@#1234$");
+            messages.push(`Created user ${targetEmail}.`);
         } else {
-            messages.push(`User ${targetUserEmail} already exists.`);
+            messages.push(`User ${targetEmail} already exists.`);
         }
 
         return new Response(JSON.stringify({ messages }), { status: 200 });
