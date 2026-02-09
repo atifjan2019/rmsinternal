@@ -1,4 +1,3 @@
-```
 ---
 import Layout from '../layouts/Layout.astro';
 import { verifySession } from '../lib/auth';
@@ -12,10 +11,10 @@ if (!user) {
 ---
 
 <Layout title="Dashboard - Review System">
-  <div class="p-8">
+  <div class="p-8 min-h-screen bg-gray-900 text-white">
     <div class="flex justify-between items-center mb-8">
         <h1 class="text-3xl font-bold">Dashboard</h1>
-        <button id="logout-btn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded">
+        <button id="logout-btn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded transition">
             Logout
         </button>
     </div>
@@ -32,4 +31,3 @@ if (!user) {
     });
   </script>
 </Layout>
-```
