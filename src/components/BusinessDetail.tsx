@@ -53,6 +53,12 @@ export default function BusinessDetail({ locationId }: { locationId: string }) {
     const [replySaving, setReplySaving] = useState(false);
     const [generating, setGenerating] = useState(false);
 
+    const [reviewTab, setReviewTab] = useState<"new" | "replied">("new");
+    const [page, setPage] = useState(1);
+    const [nextPageToken, setNextPageToken] = useState<string | undefined>(undefined);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const PER_PAGE = 10;
+
     const [showSettings, setShowSettings] = useState(false);
     const [settingsEnabled, setSettingsEnabled] = useState(false);
     const [settingsMode, setSettingsMode] = useState<"template" | "ai">("template");
@@ -69,6 +75,7 @@ export default function BusinessDetail({ locationId }: { locationId: string }) {
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || "Failed to load reviews");
             setReviews(data.reviews || []);
+            setNextPageToken(data.nextPageToken);
             setReviewMeta({ averageRating: data.averageRating, totalReviewCount: data.totalReviewCount });
         } catch (err: any) {
             setError(err.message);
@@ -112,6 +119,24 @@ export default function BusinessDetail({ locationId }: { locationId: string }) {
             }
         })();
     }, [locationId, loadReviews]);
+
+    async function loadMoreFromGoogle() {
+        if (!location || !nextPageToken) return;
+        setLoadingMore(true);
+        try {
+            const res = await fetch(
+                `/api/google/reviews?location=${encodeURIComponent(location.name)}&pageToken=${encodeURIComponent(nextPageToken)}`
+            );
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Failed to load more reviews");
+            setReviews((prev) => [...prev, ...(data.reviews || [])]);
+            setNextPageToken(data.nextPageToken);
+        } catch (err: any) {
+            alert(`Error: ${err.message}`);
+        } finally {
+            setLoadingMore(false);
+        }
+    }
 
     async function handleReply(reviewName: string) {
         if (!replyText.trim()) return;
@@ -217,6 +242,13 @@ export default function BusinessDetail({ locationId }: { locationId: string }) {
             </div>
         );
     }
+
+    const newReviews = reviews.filter((r) => !r.reviewReply);
+    const repliedReviews = reviews.filter((r) => !!r.reviewReply);
+    const tabReviews = reviewTab === "new" ? newReviews : repliedReviews;
+    const totalPages = Math.max(1, Math.ceil(tabReviews.length / PER_PAGE));
+    const currentPage = Math.min(page, totalPages);
+    const pagedReviews = tabReviews.slice((currentPage - 1) * PER_PAGE, currentPage * PER_PAGE);
 
     return (
         <div className="space-y-6">
@@ -423,8 +455,58 @@ export default function BusinessDetail({ locationId }: { locationId: string }) {
                     No reviews found for this business.
                 </div>
             ) : (
+                <>
+                {/* Review tabs */}
+                <div className="inline-flex rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm">
+                    <button
+                        onClick={() => {
+                            setReviewTab("new");
+                            setPage(1);
+                        }}
+                        className={`flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold transition-all ${
+                            reviewTab === "new" ? "bg-slate-900 text-white shadow" : "text-slate-500 hover:text-slate-900"
+                        }`}
+                    >
+                        New Reviews
+                        <span
+                            className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                                reviewTab === "new" ? "bg-white/20 text-white" : "bg-[#EE314F]/10 text-[#EE314F]"
+                            }`}
+                        >
+                            {newReviews.length}
+                        </span>
+                    </button>
+                    <button
+                        onClick={() => {
+                            setReviewTab("replied");
+                            setPage(1);
+                        }}
+                        className={`flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold transition-all ${
+                            reviewTab === "replied"
+                                ? "bg-slate-900 text-white shadow"
+                                : "text-slate-500 hover:text-slate-900"
+                        }`}
+                    >
+                        Replied
+                        <span
+                            className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                                reviewTab === "replied" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500"
+                            }`}
+                        >
+                            {repliedReviews.length}
+                        </span>
+                    </button>
+                </div>
+
+                {tabReviews.length === 0 ? (
+                    <div className="rounded-3xl border border-slate-200 bg-white py-16 text-center text-slate-400">
+                        {reviewTab === "new"
+                            ? "All caught up — every review has a reply. 🎉"
+                            : "No replied reviews yet."}
+                    </div>
+                ) : (
                 <div className="space-y-4">
-                    {reviews.map((review) => (
+                    {pagedReviews.map((review) => (
                         <div key={review.name} className="rounded-3xl border border-slate-200 bg-white p-6">
                             <div className="flex items-start gap-4">
                                 {review.reviewer?.profilePhotoUrl ? (
@@ -514,6 +596,46 @@ export default function BusinessDetail({ locationId }: { locationId: string }) {
                         </div>
                     ))}
                 </div>
+                )}
+
+                {/* Pagination */}
+                {(totalPages > 1 || nextPageToken) && (
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-3">
+                        <div className="flex items-center gap-3">
+                            <button
+                                onClick={() => setPage(currentPage - 1)}
+                                disabled={currentPage <= 1}
+                                className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition-all hover:bg-slate-50 disabled:opacity-40"
+                            >
+                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                                </svg>
+                            </button>
+                            <span className="text-sm font-semibold text-slate-600">
+                                Page {currentPage} of {totalPages}
+                            </span>
+                            <button
+                                onClick={() => setPage(currentPage + 1)}
+                                disabled={currentPage >= totalPages}
+                                className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition-all hover:bg-slate-50 disabled:opacity-40"
+                            >
+                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                                </svg>
+                            </button>
+                        </div>
+                        {nextPageToken && (
+                            <button
+                                onClick={loadMoreFromGoogle}
+                                disabled={loadingMore}
+                                className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition-all hover:bg-slate-50 disabled:opacity-50"
+                            >
+                                {loadingMore ? "Loading..." : "Load older reviews from Google"}
+                            </button>
+                        )}
+                    </div>
+                )}
+                </>
             )}
         </div>
     );
