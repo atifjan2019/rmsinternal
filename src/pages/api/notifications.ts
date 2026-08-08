@@ -24,12 +24,23 @@ export const GET: APIRoute = async ({ request }) => {
     });
 };
 
-/** Marks all notifications as read. */
+/** Marks notifications as read — one (body {id}) or all (empty body). */
 export const PATCH: APIRoute = async ({ request }) => {
     if (!(await checkAuth(request))) {
         return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
     }
 
-    await queryD1("UPDATE notifications SET read = 1 WHERE read = 0");
+    let id: string | undefined;
+    try {
+        id = (await request.json())?.id;
+    } catch {
+        /* empty body = mark all */
+    }
+
+    if (id) {
+        await queryD1("UPDATE notifications SET read = 1 WHERE id = ?", [id]);
+    } else {
+        await queryD1("UPDATE notifications SET read = 1 WHERE read = 0");
+    }
     return new Response(JSON.stringify({ message: "Marked read" }), { status: 200 });
 };

@@ -52,14 +52,28 @@ export default function NotificationsBell() {
         };
     }, [load]);
 
-    async function toggle() {
-        const opening = !open;
-        setOpen(opening);
-        if (opening && unread > 0) {
-            setUnread(0);
-            setItems((prev) => prev.map((n) => ({ ...n, read: 1 })));
-            await fetch("/api/notifications", { method: "PATCH" }).catch(() => {});
-        }
+    function toggle() {
+        setOpen(!open);
+    }
+
+    async function markAllRead() {
+        setUnread(0);
+        setItems((prev) => prev.map((n) => ({ ...n, read: 1 })));
+        await fetch("/api/notifications", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: "{}",
+        }).catch(() => {});
+    }
+
+    async function markOneRead(id: string) {
+        setItems((prev) => prev.map((n) => (n.id === id ? { ...n, read: 1 } : n)));
+        setUnread((u) => Math.max(0, u - 1));
+        await fetch("/api/notifications", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id }),
+        }).catch(() => {});
     }
 
     return (
@@ -81,8 +95,16 @@ export default function NotificationsBell() {
 
             {open && (
                 <div className="absolute right-0 top-12 z-50 w-96 max-w-[90vw] overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_20px_50px_-15px_rgba(0,0,0,0.15)]">
-                    <div className="border-b border-slate-100 px-5 py-3.5">
+                    <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3.5">
                         <p className="text-sm font-bold text-slate-900">Notifications</p>
+                        {unread > 0 && (
+                            <button
+                                onClick={markAllRead}
+                                className="text-xs font-bold text-[#EE314F] transition-colors hover:text-[#d42a45]"
+                            >
+                                Mark all as read
+                            </button>
+                        )}
                     </div>
                     <div className="max-h-[420px] overflow-y-auto">
                         {items.length === 0 ? (
@@ -111,7 +133,21 @@ export default function NotificationsBell() {
                                                     {timeAgo(n.created_at)}
                                                 </span>
                                             </span>
-                                            {!n.read && <span className="ml-auto mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[#EE314F]" />}
+                                            {!n.read && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        markOneRead(n.id);
+                                                    }}
+                                                    title="Mark as read"
+                                                    className="ml-auto mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[#EE314F] transition-all hover:bg-[#EE314F]/10"
+                                                >
+                                                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                                    </svg>
+                                                </button>
+                                            )}
                                         </span>
                                     </a>
                                 );
