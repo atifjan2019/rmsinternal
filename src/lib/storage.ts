@@ -28,7 +28,7 @@ const CF_ACCOUNT_ID = import.meta.env.CF_ACCOUNT_ID;
 const CF_DATABASE_ID = import.meta.env.CF_DATABASE_ID;
 const CF_API_TOKEN = import.meta.env.CF_API_TOKEN;
 
-async function queryD1(sql: string, params: any[] = []) {
+export async function queryD1(sql: string, params: any[] = []) {
   if (!CF_ACCOUNT_ID || !CF_API_TOKEN || !CF_DATABASE_ID) {
     throw new Error("Missing Cloudflare D1 environment variables (CF_ACCOUNT_ID, CF_DATABASE_ID, CF_API_TOKEN).");
   }

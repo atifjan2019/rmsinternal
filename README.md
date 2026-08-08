@@ -1,36 +1,52 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# RMS Internal — Review Management System
 
-## Getting Started
+Astro SSR app (deployed on Vercel) for managing customer review funnels and Google Business Profile reviews.
 
-First, run the development server:
+**Features**
+- Review funnel pages: per-business landing pages that route happy customers to Google and collect private feedback from unhappy ones
+- Google Business Profile integration: fetch all locations, view and reply to reviews from the dashboard
+- Auto-reply: per-location, per-star-rating reply templates posted automatically to new reviews
+
+## Stack
+
+- Astro 5 (SSR, `@astrojs/vercel` adapter) + React + Tailwind
+- Storage: Cloudflare D1 via HTTP API (see `schema.sql`)
+- Auth: admin session JWT (`jose`) + bcrypt
+
+## Environment variables (Vercel)
+
+| Variable | Purpose |
+|---|---|
+| `JWT_SECRET` | Admin session signing |
+| `CF_ACCOUNT_ID` / `CF_DATABASE_ID` / `CF_API_TOKEN` | Cloudflare D1 HTTP API |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth web client (project `gmb-n8n-469019`) |
+| `CRON_SECRET` | Protects `/api/cron/auto-reply` (Vercel Cron sends it as a Bearer token) |
+
+## Google Business Profile setup
+
+1. Google Cloud project needs these APIs enabled (already done on `gmb-n8n-469019`):
+   - My Business Account Management API
+   - My Business Business Information API
+   - Google My Business API (v4 — reviews)
+2. GBP API access must be approved by Google (quota > 0). Already approved on `gmb-n8n-469019`.
+3. OAuth 2.0 Web client with redirect URIs:
+   - `https://rms.webspires.co.uk/api/google/callback`
+   - `http://localhost:4321/api/google/callback` (local dev)
+4. Set `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` in Vercel and redeploy.
+5. In the dashboard → **Google Reviews** tab → *Connect Google Account* (sign in with the Gmail that manages the Business Profiles).
+
+**Note:** if the OAuth consent screen is in *Testing* mode, refresh tokens expire after 7 days — publish the app to Production to keep the connection alive.
+
+## Auto-reply
+
+- Configure per-location templates (star ratings 1–5) in **Google Reviews → Auto-Reply Settings**; `{name}` inserts the reviewer's first name; empty template = skip that rating.
+- Runs daily via Vercel Cron (`vercel.json`, 09:00 UTC) and on demand via the **Run Auto-Reply Now** button.
+- Only replies to reviews that have no owner reply yet; every reply is recorded in `replied_reviews` so nothing is double-posted.
+
+## Development
 
 ```bash
+npm install
+vercel env pull .env.local
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.

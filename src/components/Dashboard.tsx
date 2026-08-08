@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import GoogleReviews from "./GoogleReviews";
 
 interface ReviewLink {
     id: string;
@@ -21,10 +22,16 @@ export default function Dashboard() {
     const [showForm, setShowForm] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [baseUrl, setBaseUrl] = useState("");
+    const [activeTab, setActiveTab] = useState<"links" | "google">("links");
 
     useEffect(() => {
         setBaseUrl(window.location.origin);
         fetchLinks();
+        // Land on the Google tab when returning from the OAuth flow
+        const params = new URLSearchParams(window.location.search);
+        if (params.has("google_connected") || params.has("google_error")) {
+            setActiveTab("google");
+        }
     }, []);
 
     async function fetchLinks() {
@@ -126,29 +133,56 @@ export default function Dashboard() {
                                 </p>
                             </div>
                         </div>
-                        <button
-                            onClick={() => {
-                                if (showForm) {
-                                    setEditingId(null);
-                                    setBusinessName("");
-                                    setGmbReviewLink("");
-                                    setLogoUrl("");
-                                    setBackgroundImageUrl("");
-                                }
-                                setShowForm(!showForm);
-                            }}
-                            className={`rounded-xl px-5 py-2.5 text-sm font-semibold transition-all shadow-sm ${showForm
-                                ? "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                                : "bg-slate-900 text-white hover:bg-slate-800 hover:shadow-md active:scale-[0.98]"
-                                }`}
-                        >
-                            {showForm ? "Cancel" : "Create New Link"}
-                        </button>
+                        {activeTab === "links" && (
+                            <button
+                                onClick={() => {
+                                    if (showForm) {
+                                        setEditingId(null);
+                                        setBusinessName("");
+                                        setGmbReviewLink("");
+                                        setLogoUrl("");
+                                        setBackgroundImageUrl("");
+                                    }
+                                    setShowForm(!showForm);
+                                }}
+                                className={`rounded-xl px-5 py-2.5 text-sm font-semibold transition-all shadow-sm ${showForm
+                                    ? "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                    : "bg-slate-900 text-white hover:bg-slate-800 hover:shadow-md active:scale-[0.98]"
+                                    }`}
+                            >
+                                {showForm ? "Cancel" : "Create New Link"}
+                            </button>
+                        )}
                     </div>
                 </div>
             </header>
 
             <main className="mx-auto max-w-6xl px-6 py-12 sm:px-8">
+                {/* Tab Switcher */}
+                <div className="mb-10 inline-flex rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm">
+                    <button
+                        onClick={() => setActiveTab("links")}
+                        className={`rounded-xl px-6 py-2.5 text-sm font-bold transition-all ${activeTab === "links"
+                            ? "bg-slate-900 text-white shadow"
+                            : "text-slate-500 hover:text-slate-900"
+                            }`}
+                    >
+                        Review Pages
+                    </button>
+                    <button
+                        onClick={() => setActiveTab("google")}
+                        className={`rounded-xl px-6 py-2.5 text-sm font-bold transition-all ${activeTab === "google"
+                            ? "bg-slate-900 text-white shadow"
+                            : "text-slate-500 hover:text-slate-900"
+                            }`}
+                    >
+                        Google Reviews
+                    </button>
+                </div>
+
+                {activeTab === "google" && <GoogleReviews />}
+
+                {activeTab === "links" && (<>
                 {/* Animated Form */}
                 {showForm && (
                     <div className="mb-12 animate-slide-up">
@@ -368,6 +402,7 @@ export default function Dashboard() {
                         ))}
                     </div>
                 )}
+                </>)}
             </main>
 
             {/* Subtle Footer */}
