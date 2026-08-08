@@ -26,7 +26,9 @@ export const POST: APIRoute = async ({ request }) => {
         const headers = new Headers();
         headers.append(
             "Set-Cookie",
-            `admin_session=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=86400; ${import.meta.env.PROD ? "Secure;" : ""}`
+            // SameSite=Lax (not Strict): the Google OAuth callback arrives as a cross-site
+            // redirect, and Strict would drop the session cookie on that request
+            `admin_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400; ${import.meta.env.PROD ? "Secure;" : ""}`
         );
 
         return new Response(JSON.stringify({ success: true }), { status: 200, headers });

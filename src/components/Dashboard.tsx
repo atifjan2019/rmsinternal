@@ -22,7 +22,7 @@ export default function Dashboard() {
     const [showForm, setShowForm] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [baseUrl, setBaseUrl] = useState("");
-    const [activeTab, setActiveTab] = useState<"links" | "google">("links");
+    const [activeTab, setActiveTab] = useState<"links" | "google">("google");
 
     useEffect(() => {
         setBaseUrl(window.location.origin);
@@ -161,15 +161,6 @@ export default function Dashboard() {
                 {/* Tab Switcher */}
                 <div className="mb-10 inline-flex rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm">
                     <button
-                        onClick={() => setActiveTab("links")}
-                        className={`rounded-xl px-6 py-2.5 text-sm font-bold transition-all ${activeTab === "links"
-                            ? "bg-slate-900 text-white shadow"
-                            : "text-slate-500 hover:text-slate-900"
-                            }`}
-                    >
-                        Review Pages
-                    </button>
-                    <button
                         onClick={() => setActiveTab("google")}
                         className={`rounded-xl px-6 py-2.5 text-sm font-bold transition-all ${activeTab === "google"
                             ? "bg-slate-900 text-white shadow"
@@ -177,6 +168,15 @@ export default function Dashboard() {
                             }`}
                     >
                         Google Reviews
+                    </button>
+                    <button
+                        onClick={() => setActiveTab("links")}
+                        className={`rounded-xl px-6 py-2.5 text-sm font-bold transition-all ${activeTab === "links"
+                            ? "bg-slate-900 text-white shadow"
+                            : "text-slate-500 hover:text-slate-900"
+                            }`}
+                    >
+                        Review Pages
                     </button>
                 </div>
 
