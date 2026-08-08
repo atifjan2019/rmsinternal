@@ -4,6 +4,7 @@ interface GoogleStatus {
     connected: boolean;
     email: string | null;
     configured: boolean;
+    ai: boolean;
 }
 
 interface AutoReplySettings {
@@ -11,6 +12,9 @@ interface AutoReplySettings {
     location_title: string;
     enabled: boolean;
     templates: Record<string, string>;
+    mode: "template" | "ai";
+    ai_instructions: string;
+    allowed_stars: number[];
 }
 
 interface GbpLocation {
@@ -72,10 +76,14 @@ export default function GoogleReviews() {
     const [replyingTo, setReplyingTo] = useState<string | null>(null);
     const [replyText, setReplyText] = useState("");
     const [replySaving, setReplySaving] = useState(false);
+    const [generating, setGenerating] = useState(false);
 
     // Auto-reply settings state
     const [showSettings, setShowSettings] = useState(false);
     const [settingsEnabled, setSettingsEnabled] = useState(false);
+    const [settingsMode, setSettingsMode] = useState<"template" | "ai">("template");
+    const [aiInstructions, setAiInstructions] = useState("");
+    const [allowedStars, setAllowedStars] = useState<number[]>([1, 2, 3, 4, 5]);
     const [templates, setTemplates] = useState<Record<string, string>>(DEFAULT_TEMPLATES);
     const [settingsSaving, setSettingsSaving] = useState(false);
     const [runningNow, setRunningNow] = useState(false);
@@ -117,6 +125,9 @@ export default function GoogleReviews() {
         setSelectedLocation(loc);
         setShowSettings(false);
         setSettingsEnabled(loc.autoReply?.enabled || false);
+        setSettingsMode(loc.autoReply?.mode || "template");
+        setAiInstructions(loc.autoReply?.ai_instructions || "");
+        setAllowedStars(loc.autoReply?.allowed_stars?.length ? loc.autoReply.allowed_stars : [1, 2, 3, 4, 5]);
         setTemplates(
             loc.autoReply?.templates && Object.keys(loc.autoReply.templates).length > 0
                 ? { ...DEFAULT_TEMPLATES, ...loc.autoReply.templates }
@@ -174,6 +185,31 @@ export default function GoogleReviews() {
         }
     }
 
+    async function handleGenerateAi(review: GbpReview) {
+        if (!selectedLocation) return;
+        setGenerating(true);
+        try {
+            const res = await fetch("/api/google/generate-reply", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    reviewerName: review.reviewer?.displayName || "",
+                    starRating: STAR_VALUE[review.starRating] || 0,
+                    comment: review.comment,
+                    businessName: selectedLocation.title,
+                    instructions: selectedLocation.autoReply?.ai_instructions || aiInstructions,
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Failed to generate reply");
+            setReplyText(data.reply);
+        } catch (err: any) {
+            alert(`Error: ${err.message}`);
+        } finally {
+            setGenerating(false);
+        }
+    }
+
     async function handleSaveSettings() {
         if (!selectedLocation) return;
         setSettingsSaving(true);
@@ -186,6 +222,9 @@ export default function GoogleReviews() {
                     location_title: selectedLocation.title,
                     enabled: settingsEnabled,
                     templates,
+                    mode: settingsMode,
+                    ai_instructions: aiInstructions,
+                    allowed_stars: allowedStars,
                 }),
             });
             const data = await res.json();
@@ -200,6 +239,9 @@ export default function GoogleReviews() {
                                   location_title: l.title,
                                   enabled: settingsEnabled,
                                   templates,
+                                  mode: settingsMode,
+                                  ai_instructions: aiInstructions,
+                                  allowed_stars: allowedStars,
                               },
                           }
                         : l
@@ -398,10 +440,9 @@ export default function GoogleReviews() {
                             <div className="absolute top-0 left-0 w-2 h-full bg-[#EE314F]" />
                             <div className="mb-6 flex items-center justify-between">
                                 <div>
-                                    <h4 className="text-lg font-bold text-slate-900">Auto-Reply Templates</h4>
+                                    <h4 className="text-lg font-bold text-slate-900">Auto-Reply Settings</h4>
                                     <p className="mt-1 text-sm text-slate-500">
-                                        Use <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-bold">{"{name}"}</code>{" "}
-                                        to insert the reviewer's first name. Leave a template empty to skip that rating.
+                                        Choose how replies are written for this location.
                                     </p>
                                 </div>
                                 <label className="flex cursor-pointer items-center gap-3">
@@ -415,22 +456,126 @@ export default function GoogleReviews() {
                                 </label>
                             </div>
 
-                            <div className="space-y-4">
-                                {["5", "4", "3", "2", "1"].map((star) => (
-                                    <div key={star}>
-                                        <label className="mb-1.5 flex items-center gap-2 text-sm font-semibold text-slate-700">
-                                            <Stars rating={parseInt(star)} />
-                                            <span>{star}-star reviews</span>
-                                        </label>
-                                        <textarea
-                                            value={templates[star] || ""}
-                                            onChange={(e) => setTemplates({ ...templates, [star]: e.target.value })}
-                                            rows={2}
-                                            className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm text-slate-900 transition-all focus:border-[#EE314F] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#EE314F]/5"
-                                        />
-                                    </div>
-                                ))}
+                            {/* Reply mode selector */}
+                            <div className="mb-6 grid gap-3 sm:grid-cols-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setSettingsMode("ai")}
+                                    className={`rounded-2xl border-2 p-4 text-left transition-all ${settingsMode === "ai"
+                                        ? "border-[#EE314F] bg-[#EE314F]/5"
+                                        : "border-slate-200 bg-white hover:border-slate-300"
+                                        }`}
+                                >
+                                    <span className="flex items-center gap-2 text-sm font-bold text-slate-900">
+                                        ✨ AI-Generated Replies
+                                        {!status?.ai && (
+                                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-600">
+                                                Needs API key
+                                            </span>
+                                        )}
+                                    </span>
+                                    <span className="mt-1 block text-xs text-slate-500">
+                                        Unique, personalized reply written for every review using your knowledge base.
+                                    </span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setSettingsMode("template")}
+                                    className={`rounded-2xl border-2 p-4 text-left transition-all ${settingsMode === "template"
+                                        ? "border-[#EE314F] bg-[#EE314F]/5"
+                                        : "border-slate-200 bg-white hover:border-slate-300"
+                                        }`}
+                                >
+                                    <span className="block text-sm font-bold text-slate-900">📝 Fixed Templates</span>
+                                    <span className="mt-1 block text-xs text-slate-500">
+                                        Same reply per star rating, with {"{name}"} personalization.
+                                    </span>
+                                </button>
                             </div>
+
+                            {/* Star ratings auto-reply may respond to */}
+                            <div className="mb-6">
+                                <label className="mb-1.5 block text-sm font-semibold text-slate-700">
+                                    Reply to these ratings
+                                </label>
+                                <p className="mb-2 text-xs text-slate-400">
+                                    Auto-reply only responds to the selected star ratings — deselect low ratings if you
+                                    prefer to answer those personally.
+                                </p>
+                                <div className="flex flex-wrap gap-2">
+                                    {[5, 4, 3, 2, 1].map((star) => {
+                                        const active = allowedStars.includes(star);
+                                        return (
+                                            <button
+                                                key={star}
+                                                type="button"
+                                                onClick={() =>
+                                                    setAllowedStars((prev) =>
+                                                        active ? prev.filter((s) => s !== star) : [...prev, star]
+                                                    )
+                                                }
+                                                className={`flex items-center gap-1.5 rounded-xl border-2 px-4 py-2 text-sm font-bold transition-all ${active
+                                                    ? "border-[#EE314F] bg-[#EE314F]/5 text-slate-900"
+                                                    : "border-slate-200 bg-white text-slate-400 hover:border-slate-300"
+                                                    }`}
+                                            >
+                                                <svg
+                                                    className={`h-4 w-4 ${active ? "text-amber-400" : "text-slate-300"}`}
+                                                    fill="currentColor"
+                                                    viewBox="0 0 24 24"
+                                                >
+                                                    <path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                                                </svg>
+                                                {star}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {settingsMode === "ai" ? (
+                                <div>
+                                    <label className="mb-1.5 block text-sm font-semibold text-slate-700">
+                                        Knowledge Base — about your business &amp; how to reply
+                                    </label>
+                                    <p className="mb-2 text-xs text-slate-400">
+                                        Describe the business, services, tone, and anything the AI should know or mention
+                                        (e.g. "Mobile tyre fitting company in Bolton. Friendly but professional tone. For
+                                        complaints, ask them to call 01204 XXXXXX. Mention we operate 24/7.")
+                                    </p>
+                                    <textarea
+                                        value={aiInstructions}
+                                        onChange={(e) => setAiInstructions(e.target.value)}
+                                        rows={6}
+                                        placeholder="Tell the AI about this business and what kind of replies you want..."
+                                        className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm text-slate-900 transition-all focus:border-[#EE314F] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#EE314F]/5"
+                                    />
+                                    <p className="mt-2 text-xs text-slate-400">
+                                        Templates below are kept as a fallback if AI generation ever fails.
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    <p className="text-sm text-slate-500">
+                                        Use <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-bold">{"{name}"}</code>{" "}
+                                        to insert the reviewer's first name. Leave a template empty to skip that rating.
+                                    </p>
+                                    {["5", "4", "3", "2", "1"].map((star) => (
+                                        <div key={star}>
+                                            <label className="mb-1.5 flex items-center gap-2 text-sm font-semibold text-slate-700">
+                                                <Stars rating={parseInt(star)} />
+                                                <span>{star}-star reviews</span>
+                                            </label>
+                                            <textarea
+                                                value={templates[star] || ""}
+                                                onChange={(e) => setTemplates({ ...templates, [star]: e.target.value })}
+                                                rows={2}
+                                                className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm text-slate-900 transition-all focus:border-[#EE314F] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#EE314F]/5"
+                                            />
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
 
                             <div className="mt-6 flex justify-end gap-3 border-t border-slate-100 pt-5">
                                 <button
@@ -505,7 +650,7 @@ export default function GoogleReviews() {
                                                         placeholder="Write your reply..."
                                                         className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm text-slate-900 transition-all focus:border-[#EE314F] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#EE314F]/5"
                                                     />
-                                                    <div className="flex gap-2">
+                                                    <div className="flex flex-wrap gap-2">
                                                         <button
                                                             onClick={() => handleReply(review.name)}
                                                             disabled={replySaving || !replyText.trim()}
@@ -513,6 +658,15 @@ export default function GoogleReviews() {
                                                         >
                                                             {replySaving ? "Posting..." : "Post Reply"}
                                                         </button>
+                                                        {status?.ai && (
+                                                            <button
+                                                                onClick={() => handleGenerateAi(review)}
+                                                                disabled={generating}
+                                                                className="rounded-xl border border-[#EE314F]/30 bg-[#EE314F]/5 px-5 py-2 text-sm font-bold text-[#EE314F] transition-all hover:bg-[#EE314F]/10 disabled:opacity-50"
+                                                            >
+                                                                {generating ? "Generating..." : "✨ Generate with AI"}
+                                                            </button>
+                                                        )}
                                                         <button
                                                             onClick={() => {
                                                                 setReplyingTo(null);

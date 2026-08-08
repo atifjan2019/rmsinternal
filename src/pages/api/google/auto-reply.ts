@@ -28,7 +28,7 @@ export const POST: APIRoute = async ({ request }) => {
 
     try {
         const body = await request.json();
-        const { location_name, location_title, enabled, templates } = body;
+        const { location_name, location_title, enabled, templates, mode, ai_instructions, allowed_stars } = body;
 
         if (!location_name) {
             return new Response(JSON.stringify({ error: "location_name is required" }), { status: 400 });
@@ -39,6 +39,11 @@ export const POST: APIRoute = async ({ request }) => {
             location_title: location_title || "",
             enabled: !!enabled,
             templates: templates || {},
+            mode: mode === "ai" ? "ai" : "template",
+            ai_instructions: ai_instructions || "",
+            allowed_stars: Array.isArray(allowed_stars)
+                ? allowed_stars.map(Number).filter((n: number) => n >= 1 && n <= 5)
+                : [1, 2, 3, 4, 5],
         });
 
         return new Response(JSON.stringify({ message: "Settings saved" }), { status: 200 });

@@ -273,6 +273,12 @@ export interface AutoReplySettings {
     enabled: boolean;
     /** Star rating (1-5) -> reply template. "{name}" is replaced with the reviewer's first name. */
     templates: Record<string, string>;
+    /** "template" = fixed templates per star rating, "ai" = AI-generated replies */
+    mode: "template" | "ai";
+    /** Business context / tone instructions passed to the AI */
+    ai_instructions: string;
+    /** Star ratings (1-5) auto-reply is allowed to respond to */
+    allowed_stars: number[];
 }
 
 export async function getAutoReplySettings(locationName?: string): Promise<AutoReplySettings[]> {
@@ -285,19 +291,34 @@ export async function getAutoReplySettings(locationName?: string): Promise<AutoR
         location_title: r.location_title || "",
         enabled: !!r.enabled,
         templates: r.templates ? JSON.parse(r.templates) : {},
+        mode: r.mode === "ai" ? "ai" : "template",
+        ai_instructions: r.ai_instructions || "",
+        allowed_stars: r.allowed_stars ? JSON.parse(r.allowed_stars) : [1, 2, 3, 4, 5],
     }));
 }
 
 export async function saveAutoReplySettings(s: AutoReplySettings) {
     await queryD1(
-        `INSERT INTO auto_reply_settings (location_name, location_title, enabled, templates, updated_at)
-         VALUES (?, ?, ?, ?, ?)
+        `INSERT INTO auto_reply_settings (location_name, location_title, enabled, templates, mode, ai_instructions, allowed_stars, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(location_name) DO UPDATE SET
            location_title = excluded.location_title,
            enabled = excluded.enabled,
            templates = excluded.templates,
+           mode = excluded.mode,
+           ai_instructions = excluded.ai_instructions,
+           allowed_stars = excluded.allowed_stars,
            updated_at = excluded.updated_at`,
-        [s.location_name, s.location_title, s.enabled ? 1 : 0, JSON.stringify(s.templates), new Date().toISOString()]
+        [
+            s.location_name,
+            s.location_title,
+            s.enabled ? 1 : 0,
+            JSON.stringify(s.templates),
+            s.mode === "ai" ? "ai" : "template",
+            s.ai_instructions || "",
+            JSON.stringify(s.allowed_stars?.length ? s.allowed_stars : [1, 2, 3, 4, 5]),
+            new Date().toISOString(),
+        ]
     );
 }
 

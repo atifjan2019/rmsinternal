@@ -7,6 +7,7 @@ import {
     STAR_VALUE,
     type GbpReview,
 } from "./google";
+import { aiConfigured, generateReviewReply } from "./ai";
 
 export interface AutoReplyResult {
     location: string;
@@ -49,9 +50,20 @@ export async function runAutoReply(): Promise<AutoReplyResult[]> {
                     continue;
                 }
 
-                const star = String(STAR_VALUE[review.starRating] || 0);
+                const starNum = STAR_VALUE[review.starRating] || 0;
+
+                // Only reply to star ratings the user has allowed
+                if (!settings.allowed_stars.includes(starNum)) {
+                    result.skipped++;
+                    continue;
+                }
+
+                const star = String(starNum);
                 const template = settings.templates[star];
-                if (!template || !template.trim()) {
+                const useAi = settings.mode === "ai" && aiConfigured();
+
+                // Template mode with no template for this rating -> intentionally skip
+                if (!useAi && (!template || !template.trim())) {
                     result.skipped++;
                     continue;
                 }
@@ -62,7 +74,27 @@ export async function runAutoReply(): Promise<AutoReplyResult[]> {
                 }
 
                 try {
-                    const comment = renderTemplate(template, review);
+                    let comment: string;
+                    if (useAi) {
+                        try {
+                            comment = await generateReviewReply({
+                                reviewerName: review.reviewer?.displayName || "",
+                                starRating: STAR_VALUE[review.starRating] || 0,
+                                comment: review.comment,
+                                businessName: settings.location_title || "our business",
+                                instructions: settings.ai_instructions,
+                            });
+                        } catch (aiErr: any) {
+                            // AI failed — fall back to the template for this rating if there is one
+                            if (template && template.trim()) {
+                                comment = renderTemplate(template, review);
+                            } else {
+                                throw aiErr;
+                            }
+                        }
+                    } else {
+                        comment = renderTemplate(template!, review);
+                    }
                     await replyToReview(review.name, comment);
                     await markReplied(review, settings.location_name, comment);
                     result.replied++;

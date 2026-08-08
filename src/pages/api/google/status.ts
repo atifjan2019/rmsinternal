@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro";
 import { verifySession } from "../../../lib/auth";
 import { getTokenRow, deleteTokens } from "../../../lib/google";
+import { aiConfigured } from "../../../lib/ai";
 
 async function checkAuth(request: Request): Promise<boolean> {
     const cookies = request.headers.get("cookie") || "";
@@ -19,6 +20,7 @@ export const GET: APIRoute = async ({ request }) => {
             connected: !!row,
             email: row?.email || null,
             configured: !!(import.meta.env.GOOGLE_CLIENT_ID && import.meta.env.GOOGLE_CLIENT_SECRET),
+            ai: aiConfigured(),
         }),
         { status: 200, headers: { "Content-Type": "application/json" } }
     );
