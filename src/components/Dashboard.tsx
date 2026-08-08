@@ -23,6 +23,7 @@ export default function Dashboard() {
     const [editingId, setEditingId] = useState<string | null>(null);
     const [baseUrl, setBaseUrl] = useState("");
     const [activeTab, setActiveTab] = useState<"links" | "google">("google");
+    const [manageBusinesses, setManageBusinesses] = useState(false);
 
     useEffect(() => {
         setBaseUrl(window.location.origin);
@@ -133,6 +134,17 @@ export default function Dashboard() {
                                 </p>
                             </div>
                         </div>
+                        {activeTab === "google" && (
+                            <button
+                                onClick={() => setManageBusinesses(!manageBusinesses)}
+                                className={`rounded-xl px-5 py-2.5 text-sm font-semibold transition-all shadow-sm ${manageBusinesses
+                                    ? "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                    : "bg-slate-900 text-white hover:bg-slate-800 hover:shadow-md active:scale-[0.98]"
+                                    }`}
+                            >
+                                {manageBusinesses ? "Close" : "Select Businesses"}
+                            </button>
+                        )}
                         {activeTab === "links" && (
                             <button
                                 onClick={() => {
@@ -180,7 +192,9 @@ export default function Dashboard() {
                     </button>
                 </div>
 
-                {activeTab === "google" && <GoogleReviews />}
+                {activeTab === "google" && (
+                    <GoogleReviews manageOpen={manageBusinesses} onCloseManage={() => setManageBusinesses(false)} />
+                )}
 
                 {activeTab === "links" && (<>
                 {/* Animated Form */}

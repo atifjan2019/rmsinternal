@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useCallback } from "react";
 
-interface GoogleStatus {
+export interface GoogleStatus {
     connected: boolean;
     email: string | null;
     configured: boolean;
     ai: boolean;
 }
 
-interface AutoReplySettings {
+export interface AutoReplySettings {
     location_name: string;
     location_title: string;
     enabled: boolean;
@@ -17,76 +17,33 @@ interface AutoReplySettings {
     allowed_stars: number[];
 }
 
-interface GbpLocation {
+export interface GbpLocation {
     name: string;
     title: string;
     address?: string;
     autoReply: AutoReplySettings | null;
 }
 
-interface GbpReview {
-    name: string;
-    reviewId: string;
-    reviewer: { displayName?: string; profilePhotoUrl?: string };
-    starRating: "ONE" | "TWO" | "THREE" | "FOUR" | "FIVE";
-    comment?: string;
-    createTime: string;
-    updateTime: string;
-    reviewReply?: { comment: string; updateTime: string };
+export function locationId(loc: { name: string }): string {
+    return loc.name.split("/").pop() || "";
 }
 
-const STAR_VALUE: Record<string, number> = { ONE: 1, TWO: 2, THREE: 3, FOUR: 4, FIVE: 5 };
-
-const DEFAULT_TEMPLATES: Record<string, string> = {
-    "5": "Thank you so much, {name}! We really appreciate your kind words and your support. 🌟",
-    "4": "Thanks for the great feedback, {name}! We're glad you had a good experience.",
-    "3": "Thank you for your feedback, {name}. We're always working to improve — we hope to serve you even better next time.",
-    "2": "Thank you for your honest feedback, {name}. We're sorry your experience wasn't ideal — please reach out so we can put it right.",
-    "1": "We're very sorry to hear this, {name}. Please contact us directly so we can understand what went wrong and make it right.",
-};
-
-function Stars({ rating }: { rating: number }) {
-    return (
-        <div className="flex gap-0.5">
-            {[1, 2, 3, 4, 5].map((i) => (
-                <svg
-                    key={i}
-                    className={`h-4 w-4 ${i <= rating ? "text-amber-400" : "text-slate-200"}`}
-                    fill="currentColor"
-                    viewBox="0 0 24 24"
-                >
-                    <path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-                </svg>
-            ))}
-        </div>
-    );
+interface Props {
+    manageOpen: boolean;
+    onCloseManage: () => void;
 }
 
-export default function GoogleReviews() {
+export default function GoogleReviews({ manageOpen, onCloseManage }: Props) {
     const [status, setStatus] = useState<GoogleStatus | null>(null);
     const [locations, setLocations] = useState<GbpLocation[]>([]);
-    const [selectedLocation, setSelectedLocation] = useState<GbpLocation | null>(null);
-    const [reviews, setReviews] = useState<GbpReview[]>([]);
-    const [reviewMeta, setReviewMeta] = useState<{ averageRating?: number; totalReviewCount?: number }>({});
+    const [allowed, setAllowed] = useState<string[] | null>(null);
+    const [manageSelection, setManageSelection] = useState<string[]>([]);
+    const [manageSaving, setManageSaving] = useState(false);
     const [loading, setLoading] = useState(true);
-    const [reviewsLoading, setReviewsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-
-    // Manual reply state
-    const [replyingTo, setReplyingTo] = useState<string | null>(null);
-    const [replyText, setReplyText] = useState("");
-    const [replySaving, setReplySaving] = useState(false);
-    const [generating, setGenerating] = useState(false);
-
-    // Auto-reply settings state
-    const [showSettings, setShowSettings] = useState(false);
     const [locationFilter, setLocationFilter] = useState("");
-    const [settingsEnabled, setSettingsEnabled] = useState(false);
-    const [settingsMode, setSettingsMode] = useState<"template" | "ai">("template");
-    const [aiInstructions, setAiInstructions] = useState("");
-    const [allowedStars, setAllowedStars] = useState<number[]>([1, 2, 3, 4, 5]);
-    const [templates, setTemplates] = useState<Record<string, string>>(DEFAULT_TEMPLATES);
-    const [settingsSaving, setSettingsSaving] = useState(false);
+    const [locationsCachedAt, setLocationsCachedAt] = useState<string | null>(null);
+    const [refreshingLocations, setRefreshingLocations] = useState(false);
     const [runningNow, setRunningNow] = useState(false);
     const [runResult, setRunResult] = useState<string | null>(null);
 
@@ -98,11 +55,16 @@ export default function GoogleReviews() {
             const data = await res.json();
             setStatus(data);
             if (data.connected) {
-                const locRes = await fetch("/api/google/locations");
+                const [locRes, allowedRes] = await Promise.all([
+                    fetch("/api/google/locations"),
+                    fetch("/api/google/allowed"),
+                ]);
                 const locData = await locRes.json();
                 if (!locRes.ok) throw new Error(locData.error || "Failed to load locations");
-                setLocations(locData);
-                if (locData.length === 1) selectLocation(locData[0]);
+                setLocations(locData.locations || []);
+                setLocationsCachedAt(locData.cachedAt || null);
+                const allowedData = await allowedRes.json();
+                setAllowed(allowedData.allowed || null);
             }
         } catch (err: any) {
             setError(err.message);
@@ -122,31 +84,45 @@ export default function GoogleReviews() {
         }
     }, [fetchStatus]);
 
-    async function selectLocation(loc: GbpLocation) {
-        setSelectedLocation(loc);
-        setShowSettings(false);
-        setSettingsEnabled(loc.autoReply?.enabled || false);
-        setSettingsMode(loc.autoReply?.mode || "template");
-        setAiInstructions(loc.autoReply?.ai_instructions || "");
-        setAllowedStars(loc.autoReply?.allowed_stars?.length ? loc.autoReply.allowed_stars : [1, 2, 3, 4, 5]);
-        setTemplates(
-            loc.autoReply?.templates && Object.keys(loc.autoReply.templates).length > 0
-                ? { ...DEFAULT_TEMPLATES, ...loc.autoReply.templates }
-                : DEFAULT_TEMPLATES
-        );
-        setReviews([]);
-        setReviewsLoading(true);
+    // Seed the manage panel's selection each time it opens
+    useEffect(() => {
+        if (manageOpen) {
+            setManageSelection(allowed ?? locations.map((l) => l.name));
+        }
+    }, [manageOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    async function saveManageSelection() {
+        setManageSaving(true);
+        try {
+            const res = await fetch("/api/google/allowed", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ allowed: manageSelection }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Failed to save");
+            setAllowed(manageSelection);
+            onCloseManage();
+        } catch (err: any) {
+            alert(`Error: ${err.message}`);
+        } finally {
+            setManageSaving(false);
+        }
+    }
+
+    async function refreshLocations() {
+        setRefreshingLocations(true);
         setError(null);
         try {
-            const res = await fetch(`/api/google/reviews?location=${encodeURIComponent(loc.name)}`);
+            const res = await fetch("/api/google/locations?refresh=1");
             const data = await res.json();
-            if (!res.ok) throw new Error(data.error || "Failed to load reviews");
-            setReviews(data.reviews || []);
-            setReviewMeta({ averageRating: data.averageRating, totalReviewCount: data.totalReviewCount });
+            if (!res.ok) throw new Error(data.error || "Failed to refresh locations");
+            setLocations(data.locations || []);
+            setLocationsCachedAt(data.cachedAt || null);
         } catch (err: any) {
             setError(err.message);
         } finally {
-            setReviewsLoading(false);
+            setRefreshingLocations(false);
         }
     }
 
@@ -155,105 +131,6 @@ export default function GoogleReviews() {
         await fetch("/api/google/status", { method: "DELETE" });
         setStatus((s) => (s ? { ...s, connected: false, email: null } : s));
         setLocations([]);
-        setSelectedLocation(null);
-        setReviews([]);
-    }
-
-    async function handleReply(reviewName: string) {
-        if (!replyText.trim()) return;
-        setReplySaving(true);
-        try {
-            const res = await fetch("/api/google/reviews", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ reviewName, comment: replyText }),
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || "Failed to post reply");
-            setReviews((prev) =>
-                prev.map((r) =>
-                    r.name === reviewName
-                        ? { ...r, reviewReply: { comment: replyText.trim(), updateTime: new Date().toISOString() } }
-                        : r
-                )
-            );
-            setReplyingTo(null);
-            setReplyText("");
-        } catch (err: any) {
-            alert(`Error: ${err.message}`);
-        } finally {
-            setReplySaving(false);
-        }
-    }
-
-    async function handleGenerateAi(review: GbpReview) {
-        if (!selectedLocation) return;
-        setGenerating(true);
-        try {
-            const res = await fetch("/api/google/generate-reply", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    reviewerName: review.reviewer?.displayName || "",
-                    starRating: STAR_VALUE[review.starRating] || 0,
-                    comment: review.comment,
-                    businessName: selectedLocation.title,
-                    instructions: selectedLocation.autoReply?.ai_instructions || aiInstructions,
-                }),
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || "Failed to generate reply");
-            setReplyText(data.reply);
-        } catch (err: any) {
-            alert(`Error: ${err.message}`);
-        } finally {
-            setGenerating(false);
-        }
-    }
-
-    async function handleSaveSettings() {
-        if (!selectedLocation) return;
-        setSettingsSaving(true);
-        try {
-            const res = await fetch("/api/google/auto-reply", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    location_name: selectedLocation.name,
-                    location_title: selectedLocation.title,
-                    enabled: settingsEnabled,
-                    templates,
-                    mode: settingsMode,
-                    ai_instructions: aiInstructions,
-                    allowed_stars: allowedStars,
-                }),
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || "Failed to save settings");
-            setLocations((prev) =>
-                prev.map((l) =>
-                    l.name === selectedLocation.name
-                        ? {
-                              ...l,
-                              autoReply: {
-                                  location_name: l.name,
-                                  location_title: l.title,
-                                  enabled: settingsEnabled,
-                                  templates,
-                                  mode: settingsMode,
-                                  ai_instructions: aiInstructions,
-                                  allowed_stars: allowedStars,
-                              },
-                          }
-                        : l
-                )
-            );
-            setShowSettings(false);
-        } catch (err: any) {
-            alert(`Error: ${err.message}`);
-        } finally {
-            setSettingsSaving(false);
-        }
     }
 
     async function handleRunNow() {
@@ -265,10 +142,7 @@ export default function GoogleReviews() {
             if (!res.ok) throw new Error(data.error || "Auto-reply run failed");
             const total = (data.results || []).reduce((sum: number, r: any) => sum + r.replied, 0);
             const errors = (data.results || []).flatMap((r: any) => r.errors);
-            setRunResult(
-                `Replied to ${total} review(s).${errors.length ? ` Errors: ${errors.join("; ")}` : ""}`
-            );
-            if (selectedLocation && total > 0) selectLocation(selectedLocation);
+            setRunResult(`Replied to ${total} review(s).${errors.length ? ` Errors: ${errors.join("; ")}` : ""}`);
         } catch (err: any) {
             setRunResult(`Error: ${err.message}`);
         } finally {
@@ -287,7 +161,6 @@ export default function GoogleReviews() {
         );
     }
 
-    // Not configured: env vars missing
     if (status && !status.configured) {
         return (
             <div className="rounded-[2rem] border border-amber-200 bg-amber-50 p-8 text-amber-800">
@@ -301,28 +174,15 @@ export default function GoogleReviews() {
         );
     }
 
-    // Not connected: show connect button
     if (status && !status.connected) {
         return (
             <div className="rounded-[2.5rem] border-2 border-dashed border-slate-200 bg-white py-24 text-center">
                 <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-3xl bg-slate-50">
                     <svg className="h-10 w-10" viewBox="0 0 24 24">
-                        <path
-                            fill="#4285F4"
-                            d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                        />
-                        <path
-                            fill="#34A853"
-                            d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                        />
-                        <path
-                            fill="#FBBC05"
-                            d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                        />
-                        <path
-                            fill="#EA4335"
-                            d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                        />
+                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
                     </svg>
                 </div>
                 <h3 className="text-xl font-bold text-slate-900">Connect Google Business Profile</h3>
@@ -340,6 +200,8 @@ export default function GoogleReviews() {
             </div>
         );
     }
+
+    const visibleLocations = locations.filter((loc) => !allowed || allowed.includes(loc.name));
 
     return (
         <div className="space-y-6">
@@ -385,39 +247,138 @@ export default function GoogleReviews() {
                 </div>
             )}
 
-            {/* Location picker */}
-            {locations.length > 0 && (
+            {/* Select businesses panel (opened from the header) */}
+            {manageOpen && (
+                <div className="relative overflow-hidden rounded-[2rem] border border-slate-200 bg-white p-8">
+                    <div className="absolute left-0 top-0 h-full w-2 bg-[#EE314F]" />
+                    <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <h3 className="text-lg font-bold text-slate-900">Select Businesses</h3>
+                            <p className="text-sm text-slate-500">
+                                Choose which businesses appear on your dashboard. {manageSelection.length} of{" "}
+                                {locations.length} selected.
+                            </p>
+                        </div>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => setManageSelection(locations.map((l) => l.name))}
+                                className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-500 hover:bg-slate-50"
+                            >
+                                Select All
+                            </button>
+                            <button
+                                onClick={() => setManageSelection([])}
+                                className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-500 hover:bg-slate-50"
+                            >
+                                Clear
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                        {locations.map((loc) => {
+                            const checked = manageSelection.includes(loc.name);
+                            return (
+                                <label
+                                    key={loc.name}
+                                    className={`flex cursor-pointer items-center gap-3 rounded-2xl border-2 p-3.5 transition-all ${
+                                        checked
+                                            ? "border-[#EE314F] bg-[#EE314F]/5"
+                                            : "border-slate-100 bg-slate-50/50 hover:border-slate-200"
+                                    }`}
+                                >
+                                    <input
+                                        type="checkbox"
+                                        checked={checked}
+                                        onChange={(e) =>
+                                            setManageSelection((prev) =>
+                                                e.target.checked
+                                                    ? [...prev, loc.name]
+                                                    : prev.filter((n) => n !== loc.name)
+                                            )
+                                        }
+                                        className="h-4 w-4 shrink-0 accent-[#EE314F]"
+                                    />
+                                    <span className="min-w-0">
+                                        <span className="block truncate text-sm font-bold text-slate-900">{loc.title}</span>
+                                        <span className="block truncate text-xs text-slate-400">{loc.address || ""}</span>
+                                    </span>
+                                </label>
+                            );
+                        })}
+                    </div>
+
+                    <div className="mt-6 flex justify-end gap-3 border-t border-slate-100 pt-5">
+                        <button
+                            onClick={onCloseManage}
+                            className="rounded-xl px-6 py-3 text-sm font-semibold text-slate-500 hover:bg-slate-100"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={saveManageSelection}
+                            disabled={manageSaving}
+                            className="rounded-xl bg-[#EE314F] px-8 py-3 text-sm font-bold text-white transition-all hover:bg-[#d42a45] disabled:opacity-50"
+                        >
+                            {manageSaving ? "Saving..." : "Save Selection"}
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Locations grid */}
+            {visibleLocations.length > 0 && (
                 <div className="rounded-[2rem] border border-slate-200 bg-white p-6">
                     <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
                         <div>
-                            <h3 className="text-lg font-bold text-slate-900">Your Locations</h3>
+                            <h3 className="text-lg font-bold text-slate-900">Your Businesses</h3>
                             <p className="text-sm text-slate-400">
-                                {locations.length} business profiles ·{" "}
-                                {locations.filter((l) => l.autoReply?.enabled).length} with auto-reply on
+                                {visibleLocations.length} shown ·{" "}
+                                {visibleLocations.filter((l) => l.autoReply?.enabled).length} with auto-reply on
+                                {locationsCachedAt && ` · list updated ${new Date(locationsCachedAt).toLocaleString()}`}
                             </p>
                         </div>
-                        <div className="relative">
-                            <svg
-                                className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                                strokeWidth={2}
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={refreshLocations}
+                                disabled={refreshingLocations}
+                                title="Fetch the latest location list from Google"
+                                className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition-all hover:bg-slate-50 disabled:opacity-50"
                             >
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 10a7 7 0 11-14 0 7 7 0 0114 0z" />
-                            </svg>
-                            <input
-                                type="text"
-                                value={locationFilter}
-                                onChange={(e) => setLocationFilter(e.target.value)}
-                                placeholder="Search locations..."
-                                className="w-56 rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 pl-10 pr-4 text-sm text-slate-900 placeholder-slate-400 transition-all focus:border-[#EE314F] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#EE314F]/5"
-                            />
+                                <svg
+                                    className={`h-4 w-4 ${refreshingLocations ? "animate-spin" : ""}`}
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    strokeWidth={2}
+                                >
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                                {refreshingLocations ? "Refreshing..." : "Refresh"}
+                            </button>
+                            <div className="relative">
+                                <svg
+                                    className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    strokeWidth={2}
+                                >
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 10a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                                <input
+                                    type="text"
+                                    value={locationFilter}
+                                    onChange={(e) => setLocationFilter(e.target.value)}
+                                    placeholder="Search..."
+                                    className="w-44 rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 pl-10 pr-4 text-sm text-slate-900 placeholder-slate-400 transition-all focus:border-[#EE314F] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#EE314F]/5"
+                                />
+                            </div>
                         </div>
                     </div>
 
                     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                        {locations
+                        {visibleLocations
                             .filter(
                                 (loc) =>
                                     !locationFilter.trim() ||
@@ -425,327 +386,40 @@ export default function GoogleReviews() {
                                         .toLowerCase()
                                         .includes(locationFilter.trim().toLowerCase())
                             )
-                            .map((loc) => {
-                                const selected = selectedLocation?.name === loc.name;
-                                return (
-                                    <button
-                                        key={loc.name}
-                                        onClick={() => selectLocation(loc)}
-                                        className={`group relative flex flex-col rounded-2xl border-2 p-4 text-left transition-all ${
-                                            selected
-                                                ? "border-[#EE314F] bg-[#EE314F]/5"
-                                                : "border-slate-100 bg-slate-50/50 hover:border-slate-200 hover:bg-white hover:shadow-sm"
-                                        }`}
-                                    >
-                                        <span className="flex w-full items-start justify-between gap-2">
-                                            <span
-                                                className={`truncate text-sm font-bold ${
-                                                    selected ? "text-[#EE314F]" : "text-slate-900"
-                                                }`}
-                                            >
-                                                {loc.title}
+                            .map((loc) => (
+                                <a
+                                    key={loc.name}
+                                    href={`/business/${locationId(loc)}`}
+                                    className="group flex flex-col rounded-2xl border-2 border-slate-100 bg-slate-50/50 p-4 text-left transition-all hover:border-[#EE314F]/40 hover:bg-white hover:shadow-md"
+                                >
+                                    <span className="flex w-full items-start justify-between gap-2">
+                                        <span className="truncate text-sm font-bold text-slate-900 group-hover:text-[#EE314F]">
+                                            {loc.title}
+                                        </span>
+                                        {loc.autoReply?.enabled && (
+                                            <span className="shrink-0 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-green-600">
+                                                Auto
                                             </span>
-                                            {loc.autoReply?.enabled && (
-                                                <span className="shrink-0 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-green-600">
-                                                    Auto
-                                                </span>
-                                            )}
-                                        </span>
-                                        <span className="mt-1 truncate text-xs text-slate-400">
-                                            {loc.address || "No address"}
-                                        </span>
-                                    </button>
-                                );
-                            })}
+                                        )}
+                                    </span>
+                                    <span className="mt-1 truncate text-xs text-slate-400">{loc.address || "No address"}</span>
+                                    <span className="mt-3 flex items-center gap-1 text-xs font-bold text-slate-400 group-hover:text-[#EE314F]">
+                                        Manage reviews
+                                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                                        </svg>
+                                    </span>
+                                </a>
+                            ))}
                     </div>
                 </div>
             )}
 
-            {selectedLocation && (
-                <>
-                    {/* Location header + auto-reply settings toggle */}
-                    <div className="flex flex-wrap items-center justify-between gap-4">
-                        <div>
-                            <h3 className="text-2xl font-bold text-slate-900">{selectedLocation.title}</h3>
-                            <p className="mt-0.5 text-sm text-slate-500">
-                                {reviewMeta.totalReviewCount ?? reviews.length} reviews
-                                {reviewMeta.averageRating ? ` · ${reviewMeta.averageRating.toFixed(1)} average` : ""}
-                            </p>
-                        </div>
-                        <button
-                            onClick={() => setShowSettings(!showSettings)}
-                            className={`rounded-xl px-5 py-2.5 text-sm font-semibold transition-all ${
-                                showSettings
-                                    ? "bg-slate-100 text-slate-600"
-                                    : "bg-slate-900 text-white hover:bg-slate-800"
-                            }`}
-                        >
-                            {showSettings ? "Close Settings" : "Auto-Reply Settings"}
-                        </button>
-                    </div>
-
-                    {/* Auto-reply settings */}
-                    {showSettings && (
-                        <div className="rounded-[2rem] border border-slate-200 bg-white p-8 relative overflow-hidden">
-                            <div className="absolute top-0 left-0 w-2 h-full bg-[#EE314F]" />
-                            <div className="mb-6 flex items-center justify-between">
-                                <div>
-                                    <h4 className="text-lg font-bold text-slate-900">Auto-Reply Settings</h4>
-                                    <p className="mt-1 text-sm text-slate-500">
-                                        Choose how replies are written for this location.
-                                    </p>
-                                </div>
-                                <label className="flex cursor-pointer items-center gap-3">
-                                    <span className="text-sm font-bold text-slate-700">Enabled</span>
-                                    <input
-                                        type="checkbox"
-                                        checked={settingsEnabled}
-                                        onChange={(e) => setSettingsEnabled(e.target.checked)}
-                                        className="h-5 w-5 accent-[#EE314F]"
-                                    />
-                                </label>
-                            </div>
-
-                            {/* Reply mode selector */}
-                            <div className="mb-6 grid gap-3 sm:grid-cols-2">
-                                <button
-                                    type="button"
-                                    onClick={() => setSettingsMode("ai")}
-                                    className={`rounded-2xl border-2 p-4 text-left transition-all ${settingsMode === "ai"
-                                        ? "border-[#EE314F] bg-[#EE314F]/5"
-                                        : "border-slate-200 bg-white hover:border-slate-300"
-                                        }`}
-                                >
-                                    <span className="flex items-center gap-2 text-sm font-bold text-slate-900">
-                                        ✨ AI-Generated Replies
-                                        {!status?.ai && (
-                                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-600">
-                                                Needs API key
-                                            </span>
-                                        )}
-                                    </span>
-                                    <span className="mt-1 block text-xs text-slate-500">
-                                        Unique, personalized reply written for every review using your knowledge base.
-                                    </span>
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setSettingsMode("template")}
-                                    className={`rounded-2xl border-2 p-4 text-left transition-all ${settingsMode === "template"
-                                        ? "border-[#EE314F] bg-[#EE314F]/5"
-                                        : "border-slate-200 bg-white hover:border-slate-300"
-                                        }`}
-                                >
-                                    <span className="block text-sm font-bold text-slate-900">📝 Fixed Templates</span>
-                                    <span className="mt-1 block text-xs text-slate-500">
-                                        Same reply per star rating, with {"{name}"} personalization.
-                                    </span>
-                                </button>
-                            </div>
-
-                            {/* Star ratings auto-reply may respond to */}
-                            <div className="mb-6">
-                                <label className="mb-1.5 block text-sm font-semibold text-slate-700">
-                                    Reply to these ratings
-                                </label>
-                                <p className="mb-2 text-xs text-slate-400">
-                                    Auto-reply only responds to the selected star ratings — deselect low ratings if you
-                                    prefer to answer those personally.
-                                </p>
-                                <div className="flex flex-wrap gap-2">
-                                    {[5, 4, 3, 2, 1].map((star) => {
-                                        const active = allowedStars.includes(star);
-                                        return (
-                                            <button
-                                                key={star}
-                                                type="button"
-                                                onClick={() =>
-                                                    setAllowedStars((prev) =>
-                                                        active ? prev.filter((s) => s !== star) : [...prev, star]
-                                                    )
-                                                }
-                                                className={`flex items-center gap-1.5 rounded-xl border-2 px-4 py-2 text-sm font-bold transition-all ${active
-                                                    ? "border-[#EE314F] bg-[#EE314F]/5 text-slate-900"
-                                                    : "border-slate-200 bg-white text-slate-400 hover:border-slate-300"
-                                                    }`}
-                                            >
-                                                <svg
-                                                    className={`h-4 w-4 ${active ? "text-amber-400" : "text-slate-300"}`}
-                                                    fill="currentColor"
-                                                    viewBox="0 0 24 24"
-                                                >
-                                                    <path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-                                                </svg>
-                                                {star}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-
-                            {settingsMode === "ai" ? (
-                                <div>
-                                    <label className="mb-1.5 block text-sm font-semibold text-slate-700">
-                                        Knowledge Base — about your business &amp; how to reply
-                                    </label>
-                                    <p className="mb-2 text-xs text-slate-400">
-                                        Describe the business, services, tone, and anything the AI should know or mention
-                                        (e.g. "Mobile tyre fitting company in Bolton. Friendly but professional tone. For
-                                        complaints, ask them to call 01204 XXXXXX. Mention we operate 24/7.")
-                                    </p>
-                                    <textarea
-                                        value={aiInstructions}
-                                        onChange={(e) => setAiInstructions(e.target.value)}
-                                        rows={6}
-                                        placeholder="Tell the AI about this business and what kind of replies you want..."
-                                        className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm text-slate-900 transition-all focus:border-[#EE314F] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#EE314F]/5"
-                                    />
-                                    <p className="mt-2 text-xs text-slate-400">
-                                        Templates below are kept as a fallback if AI generation ever fails.
-                                    </p>
-                                </div>
-                            ) : (
-                                <div className="space-y-4">
-                                    <p className="text-sm text-slate-500">
-                                        Use <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-bold">{"{name}"}</code>{" "}
-                                        to insert the reviewer's first name. Leave a template empty to skip that rating.
-                                    </p>
-                                    {["5", "4", "3", "2", "1"].map((star) => (
-                                        <div key={star}>
-                                            <label className="mb-1.5 flex items-center gap-2 text-sm font-semibold text-slate-700">
-                                                <Stars rating={parseInt(star)} />
-                                                <span>{star}-star reviews</span>
-                                            </label>
-                                            <textarea
-                                                value={templates[star] || ""}
-                                                onChange={(e) => setTemplates({ ...templates, [star]: e.target.value })}
-                                                rows={2}
-                                                className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm text-slate-900 transition-all focus:border-[#EE314F] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#EE314F]/5"
-                                            />
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
-                            <div className="mt-6 flex justify-end gap-3 border-t border-slate-100 pt-5">
-                                <button
-                                    onClick={handleSaveSettings}
-                                    disabled={settingsSaving}
-                                    className="rounded-xl bg-[#EE314F] px-8 py-3 text-sm font-bold text-white transition-all hover:bg-[#d42a45] disabled:opacity-50"
-                                >
-                                    {settingsSaving ? "Saving..." : "Save Settings"}
-                                </button>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Reviews list */}
-                    {reviewsLoading ? (
-                        <div className="flex items-center justify-center py-16 text-slate-400">
-                            <svg className="h-6 w-6 animate-spin" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                            </svg>
-                        </div>
-                    ) : reviews.length === 0 ? (
-                        <div className="rounded-3xl border border-slate-200 bg-white py-16 text-center text-slate-400">
-                            No reviews found for this location.
-                        </div>
-                    ) : (
-                        <div className="space-y-4">
-                            {reviews.map((review) => (
-                                <div key={review.name} className="rounded-3xl border border-slate-200 bg-white p-6">
-                                    <div className="flex items-start gap-4">
-                                        {review.reviewer?.profilePhotoUrl ? (
-                                            <img
-                                                src={review.reviewer.profilePhotoUrl}
-                                                alt=""
-                                                className="h-11 w-11 rounded-full object-cover"
-                                                referrerPolicy="no-referrer"
-                                            />
-                                        ) : (
-                                            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 font-bold text-slate-400">
-                                                {(review.reviewer?.displayName || "?").charAt(0)}
-                                            </div>
-                                        )}
-                                        <div className="min-w-0 flex-1">
-                                            <div className="flex flex-wrap items-center gap-3">
-                                                <span className="font-bold text-slate-900">
-                                                    {review.reviewer?.displayName || "Anonymous"}
-                                                </span>
-                                                <Stars rating={STAR_VALUE[review.starRating] || 0} />
-                                                <span className="text-xs text-slate-400">
-                                                    {new Date(review.createTime).toLocaleDateString()}
-                                                </span>
-                                            </div>
-                                            {review.comment && (
-                                                <p className="mt-2 text-sm leading-relaxed text-slate-600">{review.comment}</p>
-                                            )}
-
-                                            {/* Existing reply */}
-                                            {review.reviewReply ? (
-                                                <div className="mt-4 rounded-2xl bg-slate-50 p-4">
-                                                    <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                                                        Your reply
-                                                    </p>
-                                                    <p className="mt-1.5 text-sm text-slate-600">{review.reviewReply.comment}</p>
-                                                </div>
-                                            ) : replyingTo === review.name ? (
-                                                <div className="mt-4 space-y-3">
-                                                    <textarea
-                                                        value={replyText}
-                                                        onChange={(e) => setReplyText(e.target.value)}
-                                                        rows={3}
-                                                        autoFocus
-                                                        placeholder="Write your reply..."
-                                                        className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm text-slate-900 transition-all focus:border-[#EE314F] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#EE314F]/5"
-                                                    />
-                                                    <div className="flex flex-wrap gap-2">
-                                                        <button
-                                                            onClick={() => handleReply(review.name)}
-                                                            disabled={replySaving || !replyText.trim()}
-                                                            className="rounded-xl bg-slate-900 px-5 py-2 text-sm font-bold text-white transition-all hover:bg-slate-800 disabled:opacity-50"
-                                                        >
-                                                            {replySaving ? "Posting..." : "Post Reply"}
-                                                        </button>
-                                                        {status?.ai && (
-                                                            <button
-                                                                onClick={() => handleGenerateAi(review)}
-                                                                disabled={generating}
-                                                                className="rounded-xl border border-[#EE314F]/30 bg-[#EE314F]/5 px-5 py-2 text-sm font-bold text-[#EE314F] transition-all hover:bg-[#EE314F]/10 disabled:opacity-50"
-                                                            >
-                                                                {generating ? "Generating..." : "✨ Generate with AI"}
-                                                            </button>
-                                                        )}
-                                                        <button
-                                                            onClick={() => {
-                                                                setReplyingTo(null);
-                                                                setReplyText("");
-                                                            }}
-                                                            className="rounded-xl px-5 py-2 text-sm font-semibold text-slate-500 hover:bg-slate-100"
-                                                        >
-                                                            Cancel
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <button
-                                                    onClick={() => {
-                                                        setReplyingTo(review.name);
-                                                        setReplyText("");
-                                                    }}
-                                                    className="mt-3 text-sm font-bold text-[#EE314F] hover:underline"
-                                                >
-                                                    Reply
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </>
+            {visibleLocations.length === 0 && locations.length > 0 && (
+                <div className="rounded-3xl border border-slate-200 bg-white py-16 text-center text-slate-400">
+                    No businesses selected. Use <span className="font-bold">Select Businesses</span> in the header to
+                    choose which ones appear here.
+                </div>
             )}
         </div>
     );

@@ -265,6 +265,30 @@ export async function replyToReview(reviewName: string, comment: string) {
     });
 }
 
+// ---------- Location cache (D1) ----------
+
+const LOCATIONS_CACHE_KEY = "gbp_locations";
+
+export async function getCachedLocations(): Promise<{ locations: GbpLocation[]; updatedAt: string } | null> {
+    const { results } = await queryD1("SELECT value, updated_at FROM kv_cache WHERE key = ? LIMIT 1", [
+        LOCATIONS_CACHE_KEY,
+    ]);
+    if (!results[0]) return null;
+    try {
+        return { locations: JSON.parse(results[0].value), updatedAt: results[0].updated_at };
+    } catch {
+        return null;
+    }
+}
+
+export async function cacheLocations(locations: GbpLocation[]) {
+    await queryD1(
+        `INSERT INTO kv_cache (key, value, updated_at) VALUES (?, ?, ?)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+        [LOCATIONS_CACHE_KEY, JSON.stringify(locations), new Date().toISOString()]
+    );
+}
+
 // ---------- Auto-reply settings (D1) ----------
 
 export interface AutoReplySettings {
