@@ -17,6 +17,9 @@ export interface AutoReplyResult {
     errors: string[];
 }
 
+/** Reviews younger than this are left alone so replies don't look instant/robotic. */
+export const MIN_REVIEW_AGE_MINUTES = 10;
+
 function renderTemplate(template: string, review: GbpReview): string {
     const firstName = (review.reviewer?.displayName || "").trim().split(/\s+/)[0] || "there";
     return template.replaceAll("{name}", firstName);
@@ -25,9 +28,13 @@ function renderTemplate(template: string, review: GbpReview): string {
 /**
  * Runs one auto-reply pass over every location with auto-reply enabled.
  * Replies only to reviews that have no owner reply yet and that we haven't replied to before.
+ * Pass locationName to process a single location (used by the new-review webhook).
  */
-export async function runAutoReply(): Promise<AutoReplyResult[]> {
-    const allSettings = (await getAutoReplySettings()).filter((s) => s.enabled);
+export async function runAutoReply(locationName?: string): Promise<AutoReplyResult[]> {
+    let allSettings = (await getAutoReplySettings()).filter((s) => s.enabled);
+    if (locationName) {
+        allSettings = allSettings.filter((s) => s.location_name === locationName);
+    }
     const results: AutoReplyResult[] = [];
 
     for (const settings of allSettings) {
@@ -46,6 +53,13 @@ export async function runAutoReply(): Promise<AutoReplyResult[]> {
                 result.checked++;
 
                 if (review.reviewReply) {
+                    result.skipped++;
+                    continue;
+                }
+
+                // Wait at least 10 minutes after a review lands before replying
+                const ageMs = Date.now() - new Date(review.createTime).getTime();
+                if (ageMs < MIN_REVIEW_AGE_MINUTES * 60_000) {
                     result.skipped++;
                     continue;
                 }

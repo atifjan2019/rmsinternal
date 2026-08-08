@@ -9,5 +9,6 @@ export default defineConfig({
         applyBaseStyles: false,
     })],
     output: 'server',
-    adapter: vercel()
+    // maxDuration: auto-reply passes call the GBP API + AI generation and can exceed the default limit
+    adapter: vercel({ maxDuration: 60 })
 });
