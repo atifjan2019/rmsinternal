@@ -535,11 +535,25 @@ export default function BusinessDetail({ locationId }: { locationId: string }) {
                                         <p className="mt-2 text-sm leading-relaxed text-slate-600">{review.comment}</p>
                                     )}
 
-                                    {review.reviewReply ? (
+                                    {replyingTo !== review.name && review.reviewReply ? (
                                         <div className="mt-4 rounded-2xl bg-slate-50 p-4">
-                                            <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                                                Your reply
-                                            </p>
+                                            <div className="flex items-center justify-between">
+                                                <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                                                    Your reply
+                                                </p>
+                                                <button
+                                                    onClick={() => {
+                                                        setReplyingTo(review.name);
+                                                        setReplyText(review.reviewReply!.comment);
+                                                    }}
+                                                    className="flex items-center gap-1.5 text-xs font-bold text-[#EE314F] transition-colors hover:text-[#d42a45]"
+                                                >
+                                                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                    </svg>
+                                                    Edit Reply
+                                                </button>
+                                            </div>
                                             <p className="mt-1.5 text-sm text-slate-600">{review.reviewReply.comment}</p>
                                         </div>
                                     ) : replyingTo === review.name ? (
@@ -558,7 +572,11 @@ export default function BusinessDetail({ locationId }: { locationId: string }) {
                                                     disabled={replySaving || !replyText.trim()}
                                                     className="rounded-xl bg-slate-900 px-5 py-2 text-sm font-bold text-white transition-all hover:bg-slate-800 disabled:opacity-50"
                                                 >
-                                                    {replySaving ? "Posting..." : "Post Reply"}
+                                                    {replySaving
+                                                        ? "Saving..."
+                                                        : review.reviewReply
+                                                          ? "Update Reply"
+                                                          : "Post Reply"}
                                                 </button>
                                                 {status?.ai && (
                                                     <button
