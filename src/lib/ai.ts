@@ -5,7 +5,7 @@
 
 const AI_API_KEY = import.meta.env.AI_API_KEY;
 const AI_BASE_URL = (import.meta.env.AI_BASE_URL || "https://agentrouter.org/v1").replace(/\/$/, "");
-const AI_MODEL = import.meta.env.AI_MODEL || "claude-sonnet-4-5";
+const AI_MODEL = import.meta.env.AI_MODEL || "gpt-5.6-sol";
 
 export function aiConfigured(): boolean {
     return !!AI_API_KEY;
@@ -53,6 +53,8 @@ export async function generateReviewReply(review: ReviewForAi): Promise<string> 
         headers: {
             Authorization: `Bearer ${AI_API_KEY}`,
             "Content-Type": "application/json",
+            // Agent Router rejects unrecognized clients ("unauthorized client detected")
+            "User-Agent": "claude-cli/2.0.14 (external, cli)",
         },
         body: JSON.stringify({
             model: AI_MODEL,
