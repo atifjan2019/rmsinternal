@@ -34,6 +34,88 @@ async function sendEmail(subject: string, html: string) {
     });
 }
 
+export function buildReviewEmailHtml(r: {
+    reviewer: string;
+    stars: number;
+    comment: string;
+    locationTitle: string;
+    locationId?: string;
+}): string {
+    const starRow = [1, 2, 3, 4, 5]
+        .map(
+            (i) =>
+                `<span style="font-size:26px;line-height:1;color:${i <= r.stars ? "#F59E0B" : "#E2E8F0"};">&#9733;</span>`
+        )
+        .join("");
+
+    return `<!doctype html>
+<html>
+<body style="margin:0;padding:0;background-color:#F1F5F9;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F1F5F9;padding:32px 12px;">
+<tr><td align="center">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+
+  <!-- Brand header -->
+  <tr><td align="center" style="padding:0 0 24px;">
+    <img src="https://rms.webspires.co.uk/favicon.png" width="44" height="44" alt="Webspires" style="display:inline-block;vertical-align:middle;border-radius:10px;">
+    <span style="display:inline-block;vertical-align:middle;margin-left:10px;font-size:20px;font-weight:800;color:#0F172A;letter-spacing:-0.02em;">Review Manager</span>
+    <div style="margin-top:4px;font-size:10px;font-weight:700;letter-spacing:0.2em;color:#94A3B8;text-transform:uppercase;">Webspires Systems</div>
+  </td></tr>
+
+  <!-- Card -->
+  <tr><td style="background-color:#FFFFFF;border:1px solid #E2E8F0;border-radius:24px;padding:0;overflow:hidden;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+      <tr><td style="background-color:#EE314F;height:6px;font-size:0;line-height:0;">&nbsp;</td></tr>
+      <tr><td style="padding:36px 40px 40px;">
+
+        <div style="font-size:11px;font-weight:800;letter-spacing:0.18em;text-transform:uppercase;color:#EE314F;margin-bottom:14px;">&#11088; New Review</div>
+
+        <div style="font-size:24px;font-weight:800;color:#0F172A;letter-spacing:-0.02em;line-height:1.25;margin-bottom:6px;">
+          ${r.reviewer} left a ${r.stars ? `${r.stars}-star ` : ""}review
+        </div>
+        ${r.locationTitle ? `<div style="font-size:14px;color:#64748B;margin-bottom:18px;">${r.locationTitle}</div>` : ""}
+
+        <div style="margin-bottom:22px;">${starRow}</div>
+
+        ${
+            r.comment
+                ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
+                     <tr>
+                       <td width="4" style="background-color:#EE314F;border-radius:4px;font-size:0;">&nbsp;</td>
+                       <td style="background-color:#F8FAFC;border-radius:0 14px 14px 0;padding:16px 20px;font-size:15px;line-height:1.6;color:#334155;font-style:italic;">
+                         &ldquo;${r.comment}&rdquo;
+                       </td>
+                     </tr>
+                   </table>`
+                : ""
+        }
+
+        <table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="border-radius:14px;background-color:#EE314F;">
+          <a href="https://rms.webspires.co.uk/business/${r.locationId || ""}" style="display:inline-block;padding:14px 30px;font-size:14px;font-weight:700;color:#FFFFFF;text-decoration:none;border-radius:14px;">
+            Reply to this review &rarr;
+          </a>
+        </td></tr></table>
+
+        <div style="margin-top:26px;padding-top:22px;border-top:1px solid #F1F5F9;font-size:12px;line-height:1.6;color:#94A3B8;">
+          If auto-reply is enabled for this business, a reply will be posted automatically about 10 minutes after the review landed.
+        </div>
+
+      </td></tr>
+    </table>
+  </td></tr>
+
+  <!-- Footer -->
+  <tr><td align="center" style="padding:26px 0 0;">
+    <div style="font-size:11px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#CBD5E1;">&copy; 2026 Webspires &middot; Review Management Pro</div>
+  </td></tr>
+
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
+}
+
 /** Records + emails a new-review notification. Idempotent per review. Never throws. */
 export async function notifyNewReview(reviewName: string, locationName?: string) {
     try {
@@ -72,17 +154,9 @@ export async function notifyNewReview(reviewName: string, locationName?: string)
         );
 
         const locationId = (locationName || "").split("/").pop();
-        const starRow = stars ? "⭐".repeat(stars) : "";
         await sendEmail(
             `${title}${locationTitle ? ` — ${locationTitle}` : ""}`,
-            `<div style="font-family:sans-serif;max-width:520px">
-                <h2 style="margin:0 0 4px">${title}</h2>
-                ${locationTitle ? `<p style="margin:0 0 12px;color:#64748b">${locationTitle}</p>` : ""}
-                ${starRow ? `<p style="font-size:20px;margin:0 0 12px">${starRow}</p>` : ""}
-                ${comment ? `<blockquote style="margin:0 0 16px;padding:12px 16px;background:#f8fafc;border-left:4px solid #EE314F;border-radius:8px">${comment}</blockquote>` : ""}
-                <p><a href="https://rms.webspires.co.uk/business/${locationId}" style="background:#EE314F;color:#fff;padding:10px 20px;border-radius:10px;text-decoration:none;font-weight:bold">Open in Review Manager</a></p>
-                <p style="color:#94a3b8;font-size:12px">Auto-reply will answer this review ~10 minutes after it landed if enabled for this business.</p>
-            </div>`
+            buildReviewEmailHtml({ reviewer, stars, comment, locationTitle, locationId })
         );
     } catch (err: any) {
         // Notifications must never break the reply pipeline
