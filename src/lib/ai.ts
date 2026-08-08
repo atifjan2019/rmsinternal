@@ -67,7 +67,15 @@ export async function generateReviewReply(review: ReviewForAi): Promise<string> 
         }),
     });
 
-    const data = await res.json().catch(() => ({}));
+    const raw = await res.text();
+    let data: any = {};
+    try {
+        data = JSON.parse(raw);
+    } catch {
+        // Non-JSON body (e.g. a WAF/challenge page) — surface what actually came back
+        throw new Error(`AI API returned non-JSON (HTTP ${res.status}): ${raw.slice(0, 200)}`);
+    }
+
     if (!res.ok) {
         const msg = data.error?.message || data.message || `AI API error ${res.status}`;
         throw new Error(`AI reply generation failed: ${msg}`);
@@ -75,7 +83,10 @@ export async function generateReviewReply(review: ReviewForAi): Promise<string> 
 
     const text = data.choices?.[0]?.message?.content?.trim();
     if (!text) {
-        throw new Error("AI API returned an empty reply.");
+        const finishReason = data.choices?.[0]?.finish_reason;
+        throw new Error(
+            `AI API returned an empty reply (HTTP ${res.status}, finish_reason: ${finishReason ?? "none"}, body: ${raw.slice(0, 200)})`
+        );
     }
     return text;
 }
