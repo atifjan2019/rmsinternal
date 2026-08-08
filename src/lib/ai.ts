@@ -6,6 +6,8 @@
 const AI_API_KEY = import.meta.env.AI_API_KEY;
 const AI_BASE_URL = (import.meta.env.AI_BASE_URL || "https://agentrouter.org/v1").replace(/\/$/, "");
 const AI_MODEL = import.meta.env.AI_MODEL || "gpt-5.6-sol";
+// Set when AI_BASE_URL points at our Cloudways relay (agentrouter.org WAF-blocks Vercel egress)
+const AI_PROXY_KEY = import.meta.env.AI_PROXY_KEY;
 
 export function aiConfigured(): boolean {
     return !!AI_API_KEY;
@@ -55,6 +57,13 @@ export async function generateReviewReply(review: ReviewForAi): Promise<string> 
             "Content-Type": "application/json",
             // Agent Router rejects unrecognized clients ("unauthorized client detected")
             "User-Agent": "claude-cli/2.0.14 (external, cli)",
+            ...(AI_PROXY_KEY
+                ? {
+                      "X-Proxy-Key": AI_PROXY_KEY,
+                      // Apache on the relay strips Authorization; this carries the upstream key
+                      "X-Upstream-Auth": `Bearer ${AI_API_KEY}`,
+                  }
+                : {}),
         },
         body: JSON.stringify({
             model: AI_MODEL,
