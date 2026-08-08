@@ -258,6 +258,11 @@ export async function listReviews(locationName: string, pageToken?: string): Pro
     };
 }
 
+export async function getReview(reviewName: string): Promise<GbpReview> {
+    const data = await gbpFetch(`https://mybusiness.googleapis.com/v4/${reviewName}`);
+    return { ...data, name: reviewName };
+}
+
 export async function replyToReview(reviewName: string, comment: string) {
     return gbpFetch(`https://mybusiness.googleapis.com/v4/${reviewName}/reply`, {
         method: "PUT",

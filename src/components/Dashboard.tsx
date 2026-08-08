@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import GoogleReviews from "./GoogleReviews";
+import NotificationsBell from "./NotificationsBell";
 
 interface ReviewLink {
     id: string;
@@ -134,6 +135,7 @@ export default function Dashboard() {
                                 </p>
                             </div>
                         </div>
+                        <NotificationsBell />
                         {activeTab === "google" && (
                             <button
                                 onClick={() => setManageBusinesses(!manageBusinesses)}

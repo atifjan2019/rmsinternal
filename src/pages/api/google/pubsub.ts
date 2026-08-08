@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
 import { runAutoReply, MIN_REVIEW_AGE_MINUTES } from "../../../lib/autoreply";
+import { notifyNewReview } from "../../../lib/notify";
 
 /**
  * Google Cloud Pub/Sub push endpoint for Business Profile review notifications.
@@ -28,6 +29,15 @@ export const POST: APIRoute = async ({ request, url }) => {
             return new Response(JSON.stringify({ ignored: type || "unknown" }), { status: 200 });
         }
 
+        const eventLocation: string | undefined =
+            event.location || (event.review ? event.review.split("/reviews/")[0] : undefined);
+
+        // Notify immediately (bell + email), even though the reply itself waits 10 minutes.
+        // Idempotent per review, so the deferred redelivery won't notify twice.
+        if (type === "NEW_REVIEW" && event.review) {
+            await notifyNewReview(event.review, eventLocation);
+        }
+
         // Defer until the review is 10 minutes old — Pub/Sub redelivers on non-2xx
         const publishTime = body?.message?.publishTime ? new Date(body.message.publishTime).getTime() : 0;
         const ageMs = Date.now() - publishTime;
@@ -35,11 +45,8 @@ export const POST: APIRoute = async ({ request, url }) => {
             return new Response(JSON.stringify({ retry: "too fresh, redeliver later" }), { status: 503 });
         }
 
-        const locationName: string | undefined =
-            event.location || (event.review ? event.review.split("/reviews/")[0] : undefined);
-
-        console.log(`Pub/Sub ${type} for ${locationName}`);
-        const results = await runAutoReply(locationName);
+        console.log(`Pub/Sub ${type} for ${eventLocation}`);
+        const results = await runAutoReply(eventLocation);
         return new Response(JSON.stringify({ results }), {
             status: 200,
             headers: { "Content-Type": "application/json" },
