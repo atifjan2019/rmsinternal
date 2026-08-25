@@ -16,19 +16,42 @@ export const GET: APIRoute = async ({ request }) => {
         return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
     }
 
-    const { results } = await queryD1("SELECT value FROM kv_cache WHERE key = ? LIMIT 1", [KEY]);
-    let allowed: string[] | null = null;
-    if (results[0]) {
-        try {
-            allowed = JSON.parse(results[0].value);
-        } catch {
-            allowed = null;
+    // A failed read must not look like "nothing saved": queryD1 swallows D1
+    // errors and returns success:false, and the caller treats null as "show
+    // everything", which would let the picker overwrite a real selection.
+    try {
+        const { results, success } = await queryD1(
+            "SELECT value FROM kv_cache WHERE key = ? LIMIT 1",
+            [KEY]
+        );
+
+        if (!success) {
+            return new Response(
+                JSON.stringify({ error: "Could not read the saved selection." }),
+                { status: 500, headers: { "Content-Type": "application/json" } }
+            );
         }
+
+        let allowed: string[] | null = null;
+        if (results[0]) {
+            try {
+                const parsed = JSON.parse(results[0].value);
+                if (Array.isArray(parsed)) allowed = parsed;
+            } catch {
+                allowed = null;
+            }
+        }
+
+        return new Response(JSON.stringify({ allowed }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+        });
+    } catch (err: any) {
+        return new Response(
+            JSON.stringify({ error: err.message || "Could not read the saved selection." }),
+            { status: 500, headers: { "Content-Type": "application/json" } }
+        );
     }
-    return new Response(JSON.stringify({ allowed }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-    });
 };
 
 export const POST: APIRoute = async ({ request }) => {

@@ -38,6 +38,8 @@ export default function GoogleReviews({ manageOpen, onCloseManage }: Props) {
     const [locations, setLocations] = useState<GbpLocation[]>([]);
     const [allowed, setAllowed] = useState<string[] | null>(null);
     const [manageSelection, setManageSelection] = useState<string[]>([]);
+    const [manageSeeded, setManageSeeded] = useState(false);
+    const [allowedLoaded, setAllowedLoaded] = useState(false);
     const [manageSaving, setManageSaving] = useState(false);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -50,6 +52,7 @@ export default function GoogleReviews({ manageOpen, onCloseManage }: Props) {
     const fetchStatus = useCallback(async () => {
         setLoading(true);
         setError(null);
+        setAllowedLoaded(false);
         try {
             const res = await fetch("/api/google/status");
             const data = await res.json();
@@ -64,7 +67,11 @@ export default function GoogleReviews({ manageOpen, onCloseManage }: Props) {
                 setLocations(locData.locations || []);
                 setLocationsCachedAt(locData.cachedAt || null);
                 const allowedData = await allowedRes.json();
-                setAllowed(allowedData.allowed || null);
+                if (!allowedRes.ok) {
+                    throw new Error(allowedData.error || "Failed to load your business selection");
+                }
+                setAllowed(Array.isArray(allowedData.allowed) ? allowedData.allowed : null);
+                setAllowedLoaded(true);
             }
         } catch (err: any) {
             setError(err.message);
@@ -84,12 +91,20 @@ export default function GoogleReviews({ manageOpen, onCloseManage }: Props) {
         }
     }, [fetchStatus]);
 
-    // Seed the manage panel's selection each time it opens
+    // Seed the manage panel once per opening, and only once the saved selection
+    // and the location list have actually loaded. Seeding from empty state used
+    // to show "0 of N" over a real saved selection, which Save would then wipe.
     useEffect(() => {
-        if (manageOpen) {
-            setManageSelection(allowed ?? locations.map((l) => l.name));
+        if (!manageOpen) {
+            setManageSeeded(false);
+            return;
         }
-    }, [manageOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+        if (manageSeeded || loading || !allowedLoaded || locations.length === 0) {
+            return;
+        }
+        setManageSelection(allowed ?? locations.map((l) => l.name));
+        setManageSeeded(true);
+    }, [manageOpen, manageSeeded, loading, allowedLoaded, locations, allowed]);
 
     async function saveManageSelection() {
         setManageSaving(true);
@@ -257,9 +272,29 @@ export default function GoogleReviews({ manageOpen, onCloseManage }: Props) {
                             <p className="text-sm text-slate-500">
                                 Choose which businesses appear on your dashboard. {manageSelection.length} of{" "}
                                 {locations.length} selected.
+                                {locationsCachedAt && (
+                                    <> &middot; list from {new Date(locationsCachedAt).toLocaleString()}</>
+                                )}
                             </p>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex flex-wrap gap-2">
+                            <button
+                                onClick={refreshLocations}
+                                disabled={refreshingLocations}
+                                title="Pull the latest business list from Google"
+                                className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                            >
+                                <svg
+                                    className={`h-3.5 w-3.5 ${refreshingLocations ? "animate-spin" : ""}`}
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    strokeWidth={2}
+                                >
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                                {refreshingLocations ? "Refreshing..." : "Refresh from Google"}
+                            </button>
                             <button
                                 onClick={() => setManageSelection(locations.map((l) => l.name))}
                                 className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-500 hover:bg-slate-50"
@@ -309,6 +344,11 @@ export default function GoogleReviews({ manageOpen, onCloseManage }: Props) {
                     </div>
 
                     <div className="mt-6 flex justify-end gap-3 border-t border-slate-100 pt-5">
+                        {!manageSeeded && (
+                            <span className="self-center text-xs font-semibold text-amber-600">
+                                Loading your saved selection&hellip;
+                            </span>
+                        )}
                         <button
                             onClick={onCloseManage}
                             className="rounded-xl px-6 py-3 text-sm font-semibold text-slate-500 hover:bg-slate-100"
@@ -317,7 +357,8 @@ export default function GoogleReviews({ manageOpen, onCloseManage }: Props) {
                         </button>
                         <button
                             onClick={saveManageSelection}
-                            disabled={manageSaving}
+                            disabled={manageSaving || !manageSeeded}
+                            title={manageSeeded ? undefined : "Waiting for your saved selection to load"}
                             className="rounded-xl bg-[#EE314F] px-8 py-3 text-sm font-bold text-white transition-all hover:bg-[#d42a45] disabled:opacity-50"
                         >
                             {manageSaving ? "Saving..." : "Save Selection"}
@@ -416,9 +457,27 @@ export default function GoogleReviews({ manageOpen, onCloseManage }: Props) {
             )}
 
             {visibleLocations.length === 0 && locations.length > 0 && (
-                <div className="rounded-3xl border border-slate-200 bg-white py-16 text-center text-slate-400">
-                    No businesses selected. Use <span className="font-bold">Select Businesses</span> in the header to
-                    choose which ones appear here.
+                <div className="rounded-3xl border border-slate-200 bg-white py-16 text-center">
+                    <p className="text-slate-400">
+                        No businesses selected. Use <span className="font-bold">Select Businesses</span> in the header
+                        to choose which ones appear here.
+                    </p>
+                    <button
+                        onClick={refreshLocations}
+                        disabled={refreshingLocations}
+                        className="mt-5 inline-flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 transition-all hover:bg-slate-50 disabled:opacity-50"
+                    >
+                        <svg
+                            className={`h-4 w-4 ${refreshingLocations ? "animate-spin" : ""}`}
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={2}
+                        >
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        {refreshingLocations ? "Refreshing..." : "Refresh from Google"}
+                    </button>
                 </div>
             )}
         </div>

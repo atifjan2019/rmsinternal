@@ -99,3 +99,95 @@ export async function generateReviewReply(review: ReviewForAi): Promise<string> 
     }
     return text;
 }
+
+
+export interface PostCopyRequest {
+    businessName: string;
+    /** The per-business knowledge base, reused from auto-reply settings. */
+    knowledge?: string;
+    /** Theme for this post; blank lets the model pick from the knowledge base. */
+    topic?: string;
+    /** Recent posts, so the model does not repeat itself. */
+    avoid?: string[];
+}
+
+/**
+ * Writes the body of a Google Business Profile post.
+ *
+ * Google rejects posts over 1500 characters and truncates in the UI at about
+ * 250, so the prompt aims short and the result is hard-capped below.
+ */
+export async function generatePostCopy(req: PostCopyRequest): Promise<string> {
+    if (!AI_API_KEY) {
+        throw new Error("AI_API_KEY environment variable is not set.");
+    }
+
+    const system = [
+        `You write short Google Business Profile posts for "${req.businessName}".`,
+        "Rules:",
+        "- Output ONLY the post text. No title, no hashtags, no markdown, no quotes around it.",
+        "- 2-3 sentences, 40-70 words. Plain, concrete, useful to a local customer.",
+        "- Lead with the service or offer, then the practical detail (area covered, timing, what to expect).",
+        "- British English. No emoji. No ALL CAPS. No invented prices, discounts, guarantees or awards.",
+        "- Never invent facts that are not in the business information below.",
+        "- Do not start with 'Looking for' or 'Are you'.",
+        req.knowledge ? `Business information: ${req.knowledge}` : "",
+    ].filter(Boolean).join("\n");
+
+    const user = [
+        req.topic ? `Write a post about: ${req.topic}` : "Write a post about one of this business's main services.",
+        req.avoid && req.avoid.length
+            ? `Do not repeat these recent posts (use a different angle and different opening):\n- ${req.avoid.join("\n- ")}`
+            : "",
+    ].filter(Boolean).join("\n\n");
+
+    const res = await fetch(`${AI_BASE_URL}/chat/completions`, {
+        method: "POST",
+        headers: {
+            Authorization: `Bearer ${AI_API_KEY}`,
+            "Content-Type": "application/json",
+            "User-Agent": "claude-cli/2.0.14 (external, cli)",
+            ...(AI_PROXY_KEY
+                ? { "X-Proxy-Key": AI_PROXY_KEY, "X-Upstream-Auth": `Bearer ${AI_API_KEY}` }
+                : {}),
+        },
+        body: JSON.stringify({
+            model: AI_MODEL,
+            messages: [
+                { role: "system", content: system },
+                { role: "user", content: user },
+            ],
+            max_tokens: 400,
+            temperature: 0.8,
+        }),
+    });
+
+    const raw = await res.text();
+    let data: any = {};
+    try {
+        data = JSON.parse(raw);
+    } catch {
+        throw new Error(`AI API returned non-JSON (HTTP ${res.status}): ${raw.slice(0, 200)}`);
+    }
+
+    if (!res.ok) {
+        throw new Error(`Post generation failed: ${data.error?.message || data.message || res.status}`);
+    }
+
+    let text = data.choices?.[0]?.message?.content?.trim();
+    if (!text) {
+        throw new Error(`AI returned an empty post (finish_reason: ${data.choices?.[0]?.finish_reason ?? "none"})`);
+    }
+
+    // Models occasionally wrap the line in quotes despite the instruction.
+    text = text.replace(/^["\u201c]|["\u201d]$/g, "").trim();
+
+    // Google's hard limit is 1500 characters; trim on a sentence where possible.
+    if (text.length > 1400) {
+        const cut = text.slice(0, 1400);
+        const lastStop = cut.lastIndexOf(". ");
+        text = (lastStop > 600 ? cut.slice(0, lastStop + 1) : cut).trim();
+    }
+
+    return text;
+}
