@@ -7,6 +7,8 @@ import {
     generatePostFor,
     publishPost,
     updateQueuedPost,
+    editPublishedPost,
+    deletePost,
     type PostStatus,
 } from "../../../lib/posts";
 
@@ -39,8 +41,10 @@ export const GET: APIRoute = async ({ request, url }) => {
  * generate  — draft a post now for one business
  * publish   — push a queued post live
  * settings  — save per-business configuration
- * update    — edit a draft's text/image/CTA
- * discard   — drop a draft
+ * update         — edit a draft's text/image/CTA
+ * edit-published — change the text/button of a post already live on Google
+ * delete         — remove a post (from Google too, if published)
+ * discard        — drop a draft
  */
 export const POST: APIRoute = async ({ request }) => {
     if (!(await checkAuth(request))) return unauthorized();
@@ -71,6 +75,22 @@ export const POST: APIRoute = async ({ request }) => {
             if (body.image_url === null || typeof body.image_url === "string") fields.image_url = body.image_url;
             await updateQueuedPost(body.id, fields);
             return json({ message: "Updated" });
+        }
+
+        if (action === "edit-published") {
+            if (!body.id) return json({ error: "id is required" }, 400);
+            const post = await editPublishedPost(body.id, {
+                summary: typeof body.summary === "string" ? body.summary : undefined,
+                cta_type: typeof body.cta_type === "string" ? body.cta_type : undefined,
+                cta_url: typeof body.cta_url === "string" ? body.cta_url : undefined,
+            });
+            return json({ post });
+        }
+
+        if (action === "delete") {
+            if (!body.id) return json({ error: "id is required" }, 400);
+            await deletePost(body.id);
+            return json({ message: "Deleted" });
         }
 
         if (action === "discard") {

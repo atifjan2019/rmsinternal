@@ -184,10 +184,38 @@ export default function PostsManager({ locations }: { locations: GbpLocation[] }
         }
     }
 
-    async function discard(id: string) {
-        if (!confirm("Discard this draft?")) return;
-        const data = await post({ action: "discard", id }, `discard:${id}`);
-        if (data) await load();
+    async function editPublished(p: QueuedPost) {
+        const summary = editing[p.id] ?? p.summary;
+        if (!summary.trim()) {
+            setError("Post text cannot be empty.");
+            return;
+        }
+        if (!confirm("Update this post on your live Google Business Profile?")) return;
+
+        const data = await post({ action: "edit-published", id: p.id, summary }, `editlive:${p.id}`);
+        if (data) {
+            setNotice("Post updated on Google.");
+            setEditing((e) => {
+                const next = { ...e };
+                delete next[p.id];
+                return next;
+            });
+            await load();
+        }
+    }
+
+    async function removePost(p: QueuedPost) {
+        const live = p.status === "published";
+        const message = live
+            ? "Delete this post from your Google Business Profile? This cannot be undone."
+            : "Delete this post from the list?";
+        if (!confirm(message)) return;
+
+        const data = await post({ action: "delete", id: p.id }, `del:${p.id}`);
+        if (data) {
+            setNotice(live ? "Post deleted from Google." : "Post removed.");
+            await load();
+        }
     }
 
     async function attachImage(p: QueuedPost, url: string | null) {
@@ -647,10 +675,11 @@ export default function PostsManager({ locations }: { locations: GbpLocation[] }
                                     </button>
                                 )}
                                 <button
-                                    onClick={() => discard(p.id)}
-                                    className="rounded-xl px-5 py-2.5 text-sm font-semibold text-slate-400 hover:bg-slate-100"
+                                    onClick={() => removePost(p)}
+                                    disabled={busy === `del:${p.id}`}
+                                    className="rounded-xl px-5 py-2.5 text-sm font-semibold text-slate-400 hover:bg-slate-100 disabled:opacity-50"
                                 >
-                                    Discard
+                                    {busy === `del:${p.id}` ? "Deleting..." : "Delete"}
                                 </button>
                             </div>
                         </div>
@@ -661,29 +690,104 @@ export default function PostsManager({ locations }: { locations: GbpLocation[] }
             {/* History */}
             {history.length > 0 && (
                 <div className="rounded-[2rem] border border-slate-200 bg-white p-6">
-                    <h4 className="mb-4 text-lg font-bold text-slate-900">Recent posts</h4>
+                    <h4 className="text-lg font-bold text-slate-900">Recent posts</h4>
+                    <p className="mb-4 mt-1 text-sm text-slate-500">
+                        Text and button can be changed after publishing. To change the image, delete the post and
+                        publish a new one — Google does not allow swapping it.
+                    </p>
                     <div className="space-y-3">
-                        {history.slice(0, 15).map((p) => (
-                            <div key={p.id} className="flex items-start gap-3 border-b border-slate-50 pb-3 last:border-0">
-                                <span
-                                    className={`mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                                        p.status === "published" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
-                                    }`}
-                                >
-                                    {p.status}
-                                </span>
-                                <div className="min-w-0 flex-1">
-                                    <p className="truncate text-sm text-slate-600">{p.summary}</p>
-                                    <p className="mt-0.5 text-xs text-slate-400">
-                                        {p.location_title} ·{" "}
-                                        {p.published_at
-                                            ? new Date(p.published_at).toLocaleString()
-                                            : new Date(p.created_at).toLocaleString()}
-                                        {p.error ? ` · ${p.error}` : ""}
-                                    </p>
+                        {history.slice(0, 15).map((p) => {
+                            const isEditing = editing[p.id] !== undefined;
+                            return (
+                                <div key={p.id} className="border-b border-slate-50 pb-4 last:border-0">
+                                    <div className="flex items-start gap-3">
+                                        <span
+                                            className={`mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                                                p.status === "published"
+                                                    ? "bg-green-100 text-green-700"
+                                                    : "bg-red-100 text-red-700"
+                                            }`}
+                                        >
+                                            {p.status}
+                                        </span>
+
+                                        <div className="min-w-0 flex-1">
+                                            {isEditing ? (
+                                                <textarea
+                                                    rows={4}
+                                                    value={editing[p.id]}
+                                                    onChange={(e) => setEditing({ ...editing, [p.id]: e.target.value })}
+                                                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm text-slate-900 focus:border-[#EE314F] focus:bg-white focus:outline-none"
+                                                />
+                                            ) : (
+                                                <p className="text-sm text-slate-600">{p.summary}</p>
+                                            )}
+
+                                            <p className="mt-1 text-xs text-slate-400">
+                                                {p.location_title} ·{" "}
+                                                {p.published_at
+                                                    ? new Date(p.published_at).toLocaleString()
+                                                    : new Date(p.created_at).toLocaleString()}
+                                                {p.error ? ` · ${p.error}` : ""}
+                                            </p>
+
+                                            <div className="mt-2 flex flex-wrap gap-2">
+                                                {p.status === "published" && !isEditing && (
+                                                    <button
+                                                        onClick={() => setEditing({ ...editing, [p.id]: p.summary })}
+                                                        className="text-xs font-bold text-[#EE314F] hover:underline"
+                                                    >
+                                                        Edit
+                                                    </button>
+                                                )}
+
+                                                {isEditing && (
+                                                    <>
+                                                        <button
+                                                            onClick={() => editPublished(p)}
+                                                            disabled={busy === `editlive:${p.id}`}
+                                                            className="rounded-lg bg-[#EE314F] px-4 py-1.5 text-xs font-bold text-white hover:bg-[#d42a45] disabled:opacity-50"
+                                                        >
+                                                            {busy === `editlive:${p.id}` ? "Updating..." : "Update on Google"}
+                                                        </button>
+                                                        <button
+                                                            onClick={() =>
+                                                                setEditing((e) => {
+                                                                    const next = { ...e };
+                                                                    delete next[p.id];
+                                                                    return next;
+                                                                })
+                                                            }
+                                                            className="px-3 py-1.5 text-xs font-semibold text-slate-400 hover:text-slate-600"
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                    </>
+                                                )}
+
+                                                {p.gbp_post_name && !isEditing && (
+                                                    <span className="text-xs text-slate-300">·</span>
+                                                )}
+
+                                                {!isEditing && (
+                                                    <button
+                                                        onClick={() => removePost(p)}
+                                                        disabled={busy === `del:${p.id}`}
+                                                        className="text-xs font-bold text-slate-400 hover:text-red-600 disabled:opacity-50"
+                                                    >
+                                                        {busy === `del:${p.id}`
+                                                            ? "Deleting..."
+                                                            : p.status === "published"
+                                                              ? "Delete from Google"
+                                                              : "Remove"}
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 </div>
             )}

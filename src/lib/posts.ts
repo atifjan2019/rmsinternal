@@ -328,3 +328,105 @@ export async function runPostSchedule(force = false): Promise<PostRunResult[]> {
 
     return out;
 }
+
+
+/**
+ * Edits a post that is already live on Google.
+ *
+ * Only the text and the button can be changed: Google does not accept media
+ * changes on an existing local post, so swapping the image means deleting the
+ * post and publishing a new one.
+ */
+export async function editPublishedPost(
+    id: string,
+    fields: { summary?: string; cta_type?: string; cta_url?: string }
+): Promise<QueuedPost> {
+    const post = await getQueuedPost(id);
+    if (!post) throw new Error("Post not found.");
+    if (post.status !== "published" || !post.gbp_post_name) {
+        throw new Error("This post is not published, so edit the draft instead.");
+    }
+
+    const summary = (fields.summary ?? post.summary).trim();
+    if (!summary) throw new Error("Post text cannot be empty.");
+
+    const ctaType = fields.cta_type ?? post.cta_type;
+    const ctaUrl = fields.cta_url ?? post.cta_url;
+
+    const body: any = { languageCode: "en", summary };
+    const masks = ["summary"];
+
+    if (ctaType && ctaType !== "NONE") {
+        body.callToAction = { actionType: ctaType };
+        if (ctaNeedsUrl(ctaType)) {
+            if (!ctaUrl) throw new Error(`${ctaType} needs a destination URL.`);
+            body.callToAction.url = ctaUrl;
+        }
+        masks.push("callToAction");
+    }
+
+    const token = await getValidAccessToken();
+    const res = await fetch(
+        `https://mybusiness.googleapis.com/v4/${post.gbp_post_name}?updateMask=${masks.join(",")}`,
+        {
+            method: "PATCH",
+            headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+                "User-Agent": "claude-cli/2.0.14 (external, cli)",
+            },
+            body: JSON.stringify(body),
+        }
+    );
+
+    const text = await res.text();
+    let data: any = {};
+    try {
+        data = JSON.parse(text);
+    } catch {
+        /* handled below */
+    }
+
+    if (!res.ok) {
+        throw new Error(data?.error?.message || `Google rejected the edit (HTTP ${res.status})`);
+    }
+
+    await updateQueuedPost(id, { summary, cta_type: ctaType, cta_url: ctaUrl, error: null });
+    return (await getQueuedPost(id))!;
+}
+
+/**
+ * Removes a post. A published post is deleted from Google first — if that
+ * fails the row is kept, so the listing and the dashboard cannot disagree.
+ */
+export async function deletePost(id: string): Promise<void> {
+    const post = await getQueuedPost(id);
+    if (!post) throw new Error("Post not found.");
+
+    if (post.status === "published" && post.gbp_post_name) {
+        const token = await getValidAccessToken();
+        const res = await fetch(`https://mybusiness.googleapis.com/v4/${post.gbp_post_name}`, {
+            method: "DELETE",
+            headers: {
+                Authorization: `Bearer ${token}`,
+                "User-Agent": "claude-cli/2.0.14 (external, cli)",
+            },
+        });
+
+        // 404 means it is already gone from Google, which is the desired end state.
+        if (!res.ok && res.status !== 404) {
+            const detail = await res.text().catch(() => "");
+            let message = `Google refused to delete the post (HTTP ${res.status})`;
+            try {
+                const parsed = JSON.parse(detail);
+                if (parsed?.error?.message) message = parsed.error.message;
+            } catch {
+                /* keep the generic message */
+            }
+            await updateQueuedPost(id, { error: message });
+            throw new Error(message);
+        }
+    }
+
+    await queryD1("DELETE FROM post_queue WHERE id = ?", [id]);
+}
