@@ -73,6 +73,8 @@ export default function PostsManager({ locations }: { locations: GbpLocation[] }
     const [error, setError] = useState<string | null>(null);
     const [notice, setNotice] = useState<string | null>(null);
     const [editing, setEditing] = useState<Record<string, string>>({});
+    const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
+    const [dragging, setDragging] = useState(false);
     const fileRef = useRef<HTMLInputElement>(null);
 
     const load = useCallback(async () => {
@@ -193,26 +195,76 @@ export default function PostsManager({ locations }: { locations: GbpLocation[] }
         if (data) await load();
     }
 
-    async function uploadImage(file: File) {
-        if (!selected) return;
+    async function uploadImages(fileList: File[]) {
+        let files = fileList;
+        if (!selected || files.length === 0) return;
+
         setBusy("upload");
         setError(null);
-        try {
-            const form = new FormData();
-            form.append("file", file);
-            const res = await fetch(`/api/posts/images?location=${encodeURIComponent(selected.name)}`, {
-                method: "POST",
-                body: form,
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || "Upload failed");
-            await loadImages(selected.name);
-            setNotice("Image uploaded.");
-        } catch (err: any) {
-            setError(err.message);
-        } finally {
+        setNotice(null);
+        setUploadProgress({ done: 0, total: files.length });
+
+        const failures: string[] = [];
+        let uploaded = 0;
+
+        // Checked here as well as on the server: Vercel rejects a body over
+        // 4.5MB before our handler runs, which surfaces as an opaque error.
+        const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
+        const tooBig = files.filter((f) => f.size > MAX_UPLOAD_BYTES);
+        files = files.filter((f) => f.size <= MAX_UPLOAD_BYTES);
+        for (const f of tooBig) {
+            failures.push(`${f.name}: larger than 4MB (${(f.size / 1024 / 1024).toFixed(1)}MB)`);
+        }
+
+        if (files.length === 0) {
+            setUploadProgress(null);
             setBusy(null);
             if (fileRef.current) fileRef.current.value = "";
+            setError(
+                `Nothing uploaded — ${failures.length} file${failures.length === 1 ? " is" : "s are"} over the 4MB limit. Resize and try again.`
+            );
+            return;
+        }
+
+        setUploadProgress({ done: 0, total: files.length });
+
+        // Sequential: a batch of large photos in parallel is a good way to hit
+        // the function's memory and body limits.
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            setUploadProgress({ done: i, total: files.length });
+
+            try {
+                const form = new FormData();
+                form.append("file", file);
+                const res = await fetch(`/api/posts/images?location=${encodeURIComponent(selected.name)}`, {
+                    method: "POST",
+                    body: form,
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || "Upload failed");
+                uploaded++;
+            } catch (err: any) {
+                // Keep going: one rejected file should not lose the rest.
+                failures.push(`${file.name}: ${err.message}`);
+            }
+        }
+
+        setUploadProgress(null);
+        setBusy(null);
+        if (fileRef.current) fileRef.current.value = "";
+
+        await loadImages(selected.name);
+
+        if (uploaded > 0) {
+            setNotice(`${uploaded} image${uploaded === 1 ? "" : "s"} uploaded.`);
+        }
+        if (failures.length) {
+            setError(
+                `${failures.length} file${failures.length === 1 ? "" : "s"} could not be uploaded — ` +
+                    failures.slice(0, 4).join("; ") +
+                    (failures.length > 4 ? ` (and ${failures.length - 4} more)` : "")
+            );
         }
     }
 
@@ -426,23 +478,41 @@ export default function PostsManager({ locations }: { locations: GbpLocation[] }
                     </div>
 
                     {/* Image library */}
-                    <div className="rounded-[2rem] border border-slate-200 bg-white p-6">
+                    <div
+                        onDragOver={(e) => {
+                            e.preventDefault();
+                            setDragging(true);
+                        }}
+                        onDragLeave={() => setDragging(false)}
+                        onDrop={(e) => {
+                            e.preventDefault();
+                            setDragging(false);
+                            const files = Array.from(e.dataTransfer.files || []).filter((f) =>
+                                f.type.startsWith("image/")
+                            );
+                            if (files.length) uploadImages(files);
+                        }}
+                        className={`rounded-[2rem] border bg-white p-6 transition-colors ${
+                            dragging ? "border-[#EE314F] bg-[#EE314F]/5" : "border-slate-200"
+                        }`}
+                    >
                         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                             <div>
                                 <h4 className="text-lg font-bold text-slate-900">Image library</h4>
                                 <p className="text-sm text-slate-500">
-                                    Posts use the least recently used image, so a few photos keep things varied.
+                                    Select or drag in several at once. Posts use the least recently used image, so a few photos keep things varied.
                                 </p>
                             </div>
                             <>
                                 <input
                                     ref={fileRef}
                                     type="file"
+                                    multiple
                                     accept="image/jpeg,image/png,image/webp"
                                     className="hidden"
                                     onChange={(e) => {
-                                        const f = e.target.files?.[0];
-                                        if (f) uploadImage(f);
+                                        const files = Array.from(e.target.files || []);
+                                        if (files.length) uploadImages(files);
                                     }}
                                 />
                                 <button
@@ -450,7 +520,9 @@ export default function PostsManager({ locations }: { locations: GbpLocation[] }
                                     disabled={busy === "upload" || !imagesConfigured}
                                     className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 transition-all hover:bg-slate-50 disabled:opacity-50"
                                 >
-                                    {busy === "upload" ? "Uploading..." : "Upload image"}
+                                    {uploadProgress
+                                        ? `Uploading ${uploadProgress.done + 1} of ${uploadProgress.total}...`
+                                        : "Upload images"}
                                 </button>
                             </>
                         </div>
@@ -461,9 +533,24 @@ export default function PostsManager({ locations }: { locations: GbpLocation[] }
                             </div>
                         )}
 
+                        {uploadProgress && (
+                            <div className="mb-4">
+                                <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                                    <div
+                                        className="h-full rounded-full bg-[#EE314F] transition-all"
+                                        style={{ width: `${Math.round((uploadProgress.done / uploadProgress.total) * 100)}%` }}
+                                    />
+                                </div>
+                                <p className="mt-1.5 text-xs text-slate-400">
+                                    Uploading {uploadProgress.done + 1} of {uploadProgress.total}&hellip;
+                                </p>
+                            </div>
+                        )}
+
                         {images.length === 0 ? (
                             <p className="py-8 text-center text-sm text-slate-400">
-                                No images yet. Posts still work without one, but they perform better with a photo.
+                                No images yet — drag photos here or use Upload images. Posts work without one, but
+                                perform better with a photo.
                             </p>
                         ) : (
                             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">

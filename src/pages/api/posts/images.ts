@@ -14,7 +14,9 @@ const json = (body: unknown, status = 200) =>
     new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 const unauthorized = () => json({ error: "Unauthorized" }, 401);
 
-const MAX_BYTES = 6 * 1024 * 1024;
+// Vercel caps a serverless request body at 4.5MB; anything larger never reaches
+// this handler, so reject just below that with a message the user can act on.
+const MAX_BYTES = 4 * 1024 * 1024;
 
 /** Image library for one business. */
 export const GET: APIRoute = async ({ request, url }) => {
@@ -46,7 +48,7 @@ export const POST: APIRoute = async ({ request, url }) => {
 
         if (!(file instanceof File)) return json({ error: "No file uploaded" }, 400);
         if (file.size === 0) return json({ error: "File is empty" }, 400);
-        if (file.size > MAX_BYTES) return json({ error: "Image is larger than 6MB" }, 413);
+        if (file.size > MAX_BYTES) return json({ error: "Image is larger than 4MB" }, 413);
         if (!ALLOWED_IMAGE_TYPES[file.type]) {
             return json({ error: `Unsupported type ${file.type || "unknown"} — use JPEG, PNG or WebP.` }, 415);
         }
