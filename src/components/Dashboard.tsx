@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import GoogleReviews from "./GoogleReviews";
 import NotificationsBell from "./NotificationsBell";
+import PostsManager from "./PostsManager";
+import type { GbpLocation } from "./GoogleReviews";
 
 interface ReviewLink {
     id: string;
@@ -23,12 +25,18 @@ export default function Dashboard() {
     const [showForm, setShowForm] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [baseUrl, setBaseUrl] = useState("");
-    const [activeTab, setActiveTab] = useState<"links" | "google">("google");
+    const [activeTab, setActiveTab] = useState<"links" | "google" | "posts">("google");
+    const [postLocations, setPostLocations] = useState<GbpLocation[]>([]);
     const [manageBusinesses, setManageBusinesses] = useState(false);
 
     useEffect(() => {
         setBaseUrl(window.location.origin);
         fetchLinks();
+        // Same list the Google tab shows, so posts can be set up per business.
+        fetch("/api/google/locations")
+            .then((r) => (r.ok ? r.json() : null))
+            .then((d) => d && setPostLocations(d.locations || []))
+            .catch(() => {});
         // Land on the Google tab when returning from the OAuth flow
         const params = new URLSearchParams(window.location.search);
         if (params.has("google_connected") || params.has("google_error")) {
@@ -184,6 +192,15 @@ export default function Dashboard() {
                         Google Reviews
                     </button>
                     <button
+                        onClick={() => setActiveTab("posts")}
+                        className={`rounded-xl px-6 py-2.5 text-sm font-bold transition-all ${activeTab === "posts"
+                            ? "bg-slate-900 text-white shadow"
+                            : "text-slate-500 hover:text-slate-900"
+                            }`}
+                    >
+                        Auto Posts
+                    </button>
+                    <button
                         onClick={() => setActiveTab("links")}
                         className={`rounded-xl px-6 py-2.5 text-sm font-bold transition-all ${activeTab === "links"
                             ? "bg-slate-900 text-white shadow"
@@ -197,6 +214,8 @@ export default function Dashboard() {
                 {activeTab === "google" && (
                     <GoogleReviews manageOpen={manageBusinesses} onCloseManage={() => setManageBusinesses(false)} />
                 )}
+
+                {activeTab === "posts" && <PostsManager locations={postLocations} />}
 
                 {activeTab === "links" && (<>
                 {/* Animated Form */}

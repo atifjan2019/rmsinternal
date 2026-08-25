@@ -30,6 +30,7 @@
     },
     "devDependencies": {
         "@types/node": "^25.2.1",
-        "@types/nodemailer": "^8.0.1"
+        "@types/nodemailer": "^8.0.1",
+        "wrangler": "^4.126.0"
     }
 }
