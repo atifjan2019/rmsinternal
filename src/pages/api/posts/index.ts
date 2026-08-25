@@ -9,6 +9,7 @@ import {
     updateQueuedPost,
     editPublishedPost,
     deletePost,
+    ctaNeedsUrl,
     type PostStatus,
 } from "../../../lib/posts";
 
@@ -101,6 +102,14 @@ export const POST: APIRoute = async ({ request }) => {
 
         if (action === "settings") {
             if (!body.location_name) return json({ error: "location_name is required" }, 400);
+
+            // Caught here rather than at publish time: on an auto-publishing
+            // business a missing URL would fail every scheduled post silently.
+            const cta = body.cta_type || "CALL";
+            if (ctaNeedsUrl(cta) && !String(body.cta_url || "").trim()) {
+                return json({ error: `The "${cta}" button needs a destination URL.` }, 400);
+            }
+
             await savePostSettings({
                 location_name: body.location_name,
                 location_title: body.location_title || "",

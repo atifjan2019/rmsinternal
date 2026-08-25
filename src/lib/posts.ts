@@ -294,6 +294,15 @@ export async function runPostSchedule(force = false): Promise<PostRunResult[]> {
         };
 
         try {
+            // Never post twice in a day for the same business, even when forced.
+            // Cloud Scheduler retries a run that returns non-2xx, and a retry
+            // after a partial success would otherwise publish a duplicate.
+            if (s.last_generated_at?.slice(0, 10) === new Date().toISOString().slice(0, 10)) {
+                r.skipped = "already posted today";
+                out.push(r);
+                continue;
+            }
+
             if (!force && s.last_generated_at) {
                 const dueAt = new Date(s.last_generated_at).getTime() + s.frequency_days * 86400_000;
                 if (Date.now() < dueAt) {

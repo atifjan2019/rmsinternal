@@ -85,6 +85,13 @@ export const DELETE: APIRoute = async ({ request, url }) => {
         // pointing at a deleted object would break any post that used it.
         await queryD1("DELETE FROM post_images WHERE id = ?", [id]);
 
+        // Unqueued drafts still referencing this image would fail to publish —
+        // Google fetches the URL and it is about to 404. Published posts keep
+        // theirs: Google rehosted a copy at publish time.
+        await queryD1("UPDATE post_queue SET image_url = NULL WHERE image_url = ? AND status = 'draft'", [
+            row.url,
+        ]);
+
         const key = keyFromUrl(row.url);
         if (key) {
             try {

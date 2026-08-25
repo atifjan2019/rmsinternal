@@ -6,7 +6,7 @@ import { runPostSchedule } from "../../../lib/posts";
  * pass; the rest land in the dashboard queue for approval.
  * Protected by CRON_SECRET, same as the auto-reply cron.
  */
-export const GET: APIRoute = async ({ request, url }) => {
+export const GET: APIRoute = async ({ request }) => {
     const secret = import.meta.env.CRON_SECRET;
     const authHeader = request.headers.get("authorization");
 
@@ -15,8 +15,10 @@ export const GET: APIRoute = async ({ request, url }) => {
     }
 
     try {
-        // ?force=1 ignores the per-business frequency, for manual runs.
-        const results = await runPostSchedule(url.searchParams.get("force") === "1");
+        // Deliberately not forceable over HTTP: forcing ignores every business's
+        // schedule at once and auto-publishes, so a stray call would post to all
+        // of them. Use the per-business draft button in the dashboard instead.
+        const results = await runPostSchedule(false);
         const generated = results.reduce((n, r) => n + r.generated, 0);
         const published = results.reduce((n, r) => n + r.published, 0);
         console.log(`Posts cron: generated ${generated}, published ${published}`, JSON.stringify(results));
