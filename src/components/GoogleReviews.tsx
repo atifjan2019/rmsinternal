@@ -431,10 +431,10 @@ export default function GoogleReviews({ manageOpen, onCloseManage }: Props) {
                                 <a
                                     key={loc.name}
                                     href={`/business/${locationId(loc)}`}
-                                    className="group flex flex-col rounded-2xl border-2 border-slate-100 bg-slate-50/50 p-4 text-left transition-all hover:border-[#EE314F]/40 hover:bg-white hover:shadow-md"
+                                    className="group flex min-w-0 flex-col rounded-2xl border-2 border-slate-100 bg-slate-50/50 p-4 text-left transition-all hover:border-[#EE314F]/40 hover:bg-white hover:shadow-md"
                                 >
-                                    <span className="flex w-full items-start justify-between gap-2">
-                                        <span className="truncate text-sm font-bold text-slate-900 group-hover:text-[#EE314F]">
+                                    <span className="flex w-full min-w-0 items-start justify-between gap-2">
+                                        <span className="min-w-0 truncate text-sm font-bold text-slate-900 group-hover:text-[#EE314F]">
                                             {loc.title}
                                         </span>
                                         {loc.autoReply?.enabled && (

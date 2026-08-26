@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import type { GoogleStatus, GbpLocation } from "./GoogleReviews";
+import PostsManager from "./PostsManager";
 
 interface GbpReview {
     name: string;
@@ -59,6 +60,11 @@ export default function BusinessDetail({ locationId }: { locationId: string }) {
     const [loadingMore, setLoadingMore] = useState(false);
     const PER_PAGE = 10;
 
+    const [tab, setTab] = useState<"reviews" | "posts">(
+        typeof window !== "undefined" && new URLSearchParams(window.location.search).get("tab") === "posts"
+            ? "posts"
+            : "reviews"
+    );
     const [showSettings, setShowSettings] = useState(false);
     const [settingsEnabled, setSettingsEnabled] = useState(false);
     const [settingsMode, setSettingsMode] = useState<"template" | "ai">("template");
@@ -271,15 +277,39 @@ export default function BusinessDetail({ locationId }: { locationId: string }) {
                         {reviewMeta.averageRating ? ` · ${reviewMeta.averageRating.toFixed(1)} average` : ""}
                     </p>
                 </div>
+                {tab === "reviews" && (
+                    <button
+                        onClick={() => setShowSettings(!showSettings)}
+                        className={`rounded-xl px-5 py-2.5 text-sm font-semibold transition-all ${
+                            showSettings ? "bg-slate-100 text-slate-600" : "bg-slate-900 text-white hover:bg-slate-800"
+                        }`}
+                    >
+                        {showSettings ? "Close Settings" : "Auto-Reply Settings"}
+                    </button>
+                )}
+            </div>
+
+            {/* Reviews / Posts */}
+            <div className="inline-flex rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm">
                 <button
-                    onClick={() => setShowSettings(!showSettings)}
-                    className={`rounded-xl px-5 py-2.5 text-sm font-semibold transition-all ${
-                        showSettings ? "bg-slate-100 text-slate-600" : "bg-slate-900 text-white hover:bg-slate-800"
+                    onClick={() => setTab("reviews")}
+                    className={`rounded-xl px-5 py-2.5 text-sm font-bold transition-all ${
+                        tab === "reviews" ? "bg-slate-900 text-white shadow" : "text-slate-500 hover:text-slate-900"
                     }`}
                 >
-                    {showSettings ? "Close Settings" : "Auto-Reply Settings"}
+                    Reviews
+                </button>
+                <button
+                    onClick={() => setTab("posts")}
+                    className={`rounded-xl px-5 py-2.5 text-sm font-bold transition-all ${
+                        tab === "posts" ? "bg-slate-900 text-white shadow" : "text-slate-500 hover:text-slate-900"
+                    }`}
+                >
+                    Posts
                 </button>
             </div>
+
+            {tab === "posts" && <PostsManager locations={[location]} singleLocation={location} />}
 
             {error && (
                 <div className="rounded-2xl border border-red-100 bg-red-50 px-5 py-4 text-sm font-semibold text-red-600">
@@ -288,7 +318,7 @@ export default function BusinessDetail({ locationId }: { locationId: string }) {
             )}
 
             {/* Auto-reply settings */}
-            {showSettings && (
+            {tab === "reviews" && showSettings && (
                 <div className="relative overflow-hidden rounded-[2rem] border border-slate-200 bg-white p-8">
                     <div className="absolute left-0 top-0 h-full w-2 bg-[#EE314F]" />
                     <div className="mb-6 flex items-center justify-between">
@@ -443,7 +473,7 @@ export default function BusinessDetail({ locationId }: { locationId: string }) {
             )}
 
             {/* Reviews */}
-            {reviewsLoading ? (
+            {tab === "reviews" && (reviewsLoading ? (
                 <div className="flex items-center justify-center py-16 text-slate-400">
                     <svg className="h-6 w-6 animate-spin" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -654,7 +684,7 @@ export default function BusinessDetail({ locationId }: { locationId: string }) {
                     </div>
                 )}
                 </>
-            )}
+            ))}
         </div>
     );
 }

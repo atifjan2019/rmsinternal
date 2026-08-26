@@ -14,31 +14,3 @@ if (!user) {
 <Layout title="Dashboard | Review Management System">
   <DashboardComponent client:load />
 </Layout>
-
-<script>
-  // Add logout button to header after component loads
-  document.addEventListener('DOMContentLoaded', () => {
-    const checkHeader = setInterval(() => {
-      const header = document.querySelector('header .flex.items-center.justify-between');
-      if (header && !document.getElementById('logout-btn')) {
-        const logoutBtn = document.createElement('button');
-        logoutBtn.id = 'logout-btn';
-        logoutBtn.className = 'ml-4 rounded-xl px-4 py-2.5 text-sm font-semibold bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 transition-all';
-        logoutBtn.innerHTML = `
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:6px;">
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-            <polyline points="16 17 21 12 16 7"></polyline>
-            <line x1="21" y1="12" x2="9" y2="12"></line>
-          </svg>
-          Logout
-        `;
-        logoutBtn.onclick = async () => {
-          await fetch('/api/auth/logout', { method: 'POST' });
-          window.location.href = '/login';
-        };
-        header.appendChild(logoutBtn);
-        clearInterval(checkHeader);
-      }
-    }, 100);
-  });
-</script>

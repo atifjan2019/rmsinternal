@@ -32,10 +32,18 @@ export default function Dashboard() {
     useEffect(() => {
         setBaseUrl(window.location.origin);
         fetchLinks();
-        // Same list the Google tab shows, so posts can be set up per business.
-        fetch("/api/google/locations")
-            .then((r) => (r.ok ? r.json() : null))
-            .then((d) => d && setPostLocations(d.locations || []))
+        // Same list the Google tab shows — including the saved selection, so
+        // Auto Posts does not offer businesses the dashboard is hiding.
+        Promise.all([
+            fetch("/api/google/locations").then((r) => (r.ok ? r.json() : null)),
+            fetch("/api/google/allowed").then((r) => (r.ok ? r.json() : null)),
+        ])
+            .then(([locData, allowedData]) => {
+                if (!locData) return;
+                const all = locData.locations || [];
+                const allowed = Array.isArray(allowedData?.allowed) ? allowedData.allowed : null;
+                setPostLocations(allowed ? all.filter((l: GbpLocation) => allowed.includes(l.name)) : all);
+            })
             .catch(() => {});
         // Land on the Google tab when returning from the OAuth flow
         const params = new URLSearchParams(window.location.search);
@@ -143,6 +151,7 @@ export default function Dashboard() {
                                 </p>
                             </div>
                         </div>
+                        <div className="flex items-center gap-2">
                         <NotificationsBell />
                         {activeTab === "google" && (
                             <button
@@ -152,7 +161,8 @@ export default function Dashboard() {
                                     : "bg-slate-900 text-white hover:bg-slate-800 hover:shadow-md active:scale-[0.98]"
                                     }`}
                             >
-                                {manageBusinesses ? "Close" : "Select Businesses"}
+                                <span className="sm:hidden">{manageBusinesses ? "Close" : "Select"}</span>
+                                <span className="hidden sm:inline">{manageBusinesses ? "Close" : "Select Businesses"}</span>
                             </button>
                         )}
                         {activeTab === "links" && (
@@ -172,9 +182,25 @@ export default function Dashboard() {
                                     : "bg-slate-900 text-white hover:bg-slate-800 hover:shadow-md active:scale-[0.98]"
                                     }`}
                             >
-                                {showForm ? "Cancel" : "Create New Link"}
+                                <span className="sm:hidden">{showForm ? "Cancel" : "New Link"}</span>
+                                <span className="hidden sm:inline">{showForm ? "Cancel" : "Create New Link"}</span>
                             </button>
                         )}
+                        <button
+                            onClick={async () => {
+                                await fetch("/api/auth/logout", { method: "POST" });
+                                window.location.href = "/login";
+                            }}
+                            title="Log out"
+                            className="flex items-center gap-2 rounded-xl border border-red-100 bg-red-50 px-3 py-2.5 text-sm font-semibold text-red-600 transition-all hover:bg-red-100 sm:px-4"
+                        >
+                            <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M16 17l5-5-5-5M21 12H9" />
+                            </svg>
+                            <span className="hidden sm:inline">Logout</span>
+                        </button>
+                        </div>
                     </div>
                 </div>
             </header>

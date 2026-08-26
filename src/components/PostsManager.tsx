@@ -59,7 +59,14 @@ const emptySettings = (loc: GbpLocation): PostSettings => ({
     last_generated_at: null,
 });
 
-export default function PostsManager({ locations }: { locations: GbpLocation[] }) {
+export default function PostsManager({
+    locations,
+    singleLocation,
+}: {
+    locations: GbpLocation[];
+    /** When set, the picker is hidden and this business is shown directly. */
+    singleLocation?: GbpLocation;
+}) {
     const [selected, setSelected] = useState<GbpLocation | null>(null);
     const [settings, setSettings] = useState<PostSettings | null>(null);
     const [allSettings, setAllSettings] = useState<PostSettings[]>([]);
@@ -95,6 +102,15 @@ export default function PostsManager({ locations }: { locations: GbpLocation[] }
     useEffect(() => {
         load();
     }, [load]);
+
+    // On a business page there is nothing to pick — open straight into it.
+    useEffect(() => {
+        if (!singleLocation || loading) return;
+        if (selected?.name === singleLocation.name) return;
+        selectLocation(singleLocation);
+        // selectLocation is stable enough for this one-shot setup.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [singleLocation, loading, allSettings]);
 
     const loadImages = useCallback(async (locationName: string) => {
         try {
@@ -336,7 +352,8 @@ export default function PostsManager({ locations }: { locations: GbpLocation[] }
                 </div>
             )}
 
-            {/* Business picker */}
+            {/* Business picker — dashboard only */}
+            {!singleLocation && (
             <div className="rounded-[2rem] border border-slate-200 bg-white p-6">
                 <h3 className="mb-1 text-lg font-bold text-slate-900">Auto Posts</h3>
                 <p className="mb-5 text-sm text-slate-500">
@@ -345,19 +362,14 @@ export default function PostsManager({ locations }: { locations: GbpLocation[] }
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     {locations.map((loc) => {
                         const s = allSettings.find((x) => x.location_name === loc.name);
-                        const isSel = selected?.name === loc.name;
                         return (
-                            <button
+                            <a
                                 key={loc.name}
-                                onClick={() => selectLocation(loc)}
-                                className={`rounded-2xl border-2 p-4 text-left transition-all ${
-                                    isSel
-                                        ? "border-[#EE314F] bg-[#EE314F]/5"
-                                        : "border-slate-100 bg-slate-50/50 hover:border-slate-200 hover:bg-white"
-                                }`}
+                                href={`/business/${loc.name.split("/").pop()}?tab=posts`}
+                                className="group flex min-w-0 flex-col rounded-2xl border-2 border-slate-100 bg-slate-50/50 p-4 text-left transition-all hover:border-[#EE314F]/40 hover:bg-white hover:shadow-md"
                             >
-                                <span className="flex items-start justify-between gap-2">
-                                    <span className={`truncate text-sm font-bold ${isSel ? "text-[#EE314F]" : "text-slate-900"}`}>
+                                <span className="flex w-full min-w-0 items-start justify-between gap-2">
+                                    <span className="min-w-0 truncate text-sm font-bold text-slate-900 group-hover:text-[#EE314F]">
                                         {loc.title}
                                     </span>
                                     {s?.enabled && (
@@ -375,11 +387,18 @@ export default function PostsManager({ locations }: { locations: GbpLocation[] }
                                         ? `Last post ${new Date(s.last_generated_at).toLocaleDateString()}`
                                         : "Not set up yet"}
                                 </span>
-                            </button>
+                                <span className="mt-3 flex items-center gap-1 text-xs font-bold text-slate-400 group-hover:text-[#EE314F]">
+                                    Set up posts
+                                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                                    </svg>
+                                </span>
+                            </a>
                         );
                     })}
                 </div>
             </div>
+            )}
 
             {settings && selected && (
                 <>
