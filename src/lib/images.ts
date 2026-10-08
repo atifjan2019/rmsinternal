@@ -75,32 +75,38 @@ export async function imagesConfigured(): Promise<boolean> {
 
 /** One image from Cloudflare Workers AI (FLUX.1 schnell): free daily allowance, JPEG back as base64. */
 async function cloudflareImage(prompt: string, cfg: ImageConfig): Promise<{ bytes: ArrayBuffer; contentType: string }> {
-    const res = await fetch(
-        `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(cfg.cfAccountId)}/ai/run/${cfg.model}`,
-        {
+    const url = `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(cfg.cfAccountId)}/ai/run/${cfg.model}`;
+    // The model's own default of 4 steps; more, and long prompts, make its
+    // runner fail ("Cog prediction failed"), which is also why a failed run is
+    // tried once more before giving up.
+    const body = JSON.stringify({ prompt: prompt.slice(0, 900), steps: 4 });
+    let lastError = "";
+    for (let attempt = 0; attempt < 2; attempt++) {
+        const res = await fetch(url, {
             method: "POST",
             headers: { Authorization: `Bearer ${cfg.cfToken}`, "Content-Type": "application/json" },
-            // The model takes up to 2048 characters; 8 steps is its best quality.
-            body: JSON.stringify({ prompt: prompt.slice(0, 2000), steps: 8 }),
+            body,
+        });
+        const raw = await res.text();
+        let data: any = {};
+        try {
+            data = JSON.parse(raw);
+        } catch {
+            throw new Error(`Image API returned non-JSON (HTTP ${res.status}): ${raw.slice(0, 200)}`);
         }
-    );
-    const raw = await res.text();
-    let data: any = {};
-    try {
-        data = JSON.parse(raw);
-    } catch {
-        throw new Error(`Image API returned non-JSON (HTTP ${res.status}): ${raw.slice(0, 200)}`);
+        if (res.ok && data.success !== false) {
+            const b64 = data.result?.image || data.image;
+            if (!b64) throw new Error(`Image generation returned no image: ${raw.slice(0, 200)}`);
+            const bin = atob(b64);
+            const bytes = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            return { bytes: bytes.buffer, contentType: "image/jpeg" };
+        }
+        lastError = data.errors?.map((e: any) => e.message).join("; ") || `HTTP ${res.status}`;
+        // Only the runner's own hiccup is worth a second go; a bad token or account is not.
+        if (!/prediction failed|internal|timed? ?out|unavailable|503|500/i.test(lastError)) break;
     }
-    if (!res.ok || data.success === false) {
-        const msg = data.errors?.map((e: any) => e.message).join("; ") || `HTTP ${res.status}`;
-        throw new Error(`Image generation failed: ${msg}`);
-    }
-    const b64 = data.result?.image || data.image;
-    if (!b64) throw new Error(`Image generation returned no image: ${raw.slice(0, 200)}`);
-    const bin = atob(b64);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    return { bytes: bytes.buffer, contentType: "image/jpeg" };
+    throw new Error(`Image generation failed: ${lastError}`);
 }
 
 /** One image from Gemini (Nano Banana) through the Interactions API, as bytes plus its type. */
