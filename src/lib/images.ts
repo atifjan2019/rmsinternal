@@ -12,7 +12,11 @@ import { uploadImage } from "./r2";
 import { getSettings } from "./settings";
 import { queryD1 } from "./storage";
 
-export const IMAGE_SETTING_KEYS = ["IMAGE_PROVIDER", "IMAGE_API_KEY", "IMAGE_MODEL", "CF_AI_ACCOUNT_ID", "CF_AI_TOKEN"] as const;
+export const IMAGE_SETTING_KEYS = ["IMAGE_PROVIDER", "IMAGE_API_KEY", "IMAGE_MODEL", "CF_AI_ACCOUNT_ID", "CF_AI_TOKEN", "IMAGE_DAILY_LIMIT"] as const;
+// Cloudflare's free allowance is 10,000 neurons a day, reset at midnight UTC,
+// and one image at the default settings costs about 58, so around 170 would
+// fit. A lower cap keeps the account well inside it with room for other use.
+export const DEFAULT_DAILY_LIMIT = 100;
 // The cheapest current image model (about 3p an image); posts need nothing more.
 const DEFAULT_MODEL = "gemini-3.1-flash-lite-image";
 
@@ -26,6 +30,8 @@ export interface ImageConfig {
     model: string;
     cfAccountId: string;
     cfToken: string;
+    /** Generated images allowed per UTC day, across all businesses. */
+    dailyLimit: number;
     source: Record<(typeof IMAGE_SETTING_KEYS)[number], Source>;
 }
 const CF_MODEL = "@cf/black-forest-labs/flux-1-schnell";
@@ -44,6 +50,7 @@ export async function getImageConfig(): Promise<ImageConfig> {
         // The D1 account is the same Cloudflare account, so it is the default.
         CF_AI_ACCOUNT_ID: import.meta.env.CF_AI_ACCOUNT_ID || import.meta.env.CF_ACCOUNT_ID || "",
         CF_AI_TOKEN: import.meta.env.CF_AI_TOKEN || "",
+        IMAGE_DAILY_LIMIT: import.meta.env.IMAGE_DAILY_LIMIT || "",
     };
     const defaults: Record<string, string> = { IMAGE_PROVIDER: "cloudflare", IMAGE_MODEL: "" };
     const pick = (key: (typeof IMAGE_SETTING_KEYS)[number]): [string, Source] =>
@@ -53,6 +60,9 @@ export async function getImageConfig(): Promise<ImageConfig> {
     const [model, s3] = pick("IMAGE_MODEL");
     const [cfAccountId, s4] = pick("CF_AI_ACCOUNT_ID");
     const [cfToken, s5] = pick("CF_AI_TOKEN");
+    const [limitText, s6] = pick("IMAGE_DAILY_LIMIT");
+    const parsed = parseInt(limitText, 10);
+    const dailyLimit = Number.isFinite(parsed) && parsed >= 0 ? parsed : DEFAULT_DAILY_LIMIT;
     const p: ImageProvider = provider === "gemini" ? "gemini" : "cloudflare";
     return {
         provider: p,
@@ -60,8 +70,25 @@ export async function getImageConfig(): Promise<ImageConfig> {
         model: model || (p === "gemini" ? DEFAULT_MODEL : CF_MODEL),
         cfAccountId,
         cfToken,
-        source: { IMAGE_PROVIDER: s1, IMAGE_API_KEY: s2, IMAGE_MODEL: model ? s3 : "default", CF_AI_ACCOUNT_ID: s4, CF_AI_TOKEN: s5 },
+        dailyLimit,
+        source: { IMAGE_PROVIDER: s1, IMAGE_API_KEY: s2, IMAGE_MODEL: model ? s3 : "default", CF_AI_ACCOUNT_ID: s4, CF_AI_TOKEN: s5, IMAGE_DAILY_LIMIT: limitText ? s6 : "default" },
     };
+}
+
+/** Today's date as Cloudflare counts its allowance: UTC. */
+const utcDay = () => new Date().toISOString().slice(0, 10);
+
+/** How many images have been generated today (UTC). */
+export async function imagesUsedToday(): Promise<number> {
+    const { results } = await queryD1("SELECT count FROM image_usage WHERE day = ?", [utcDay()]);
+    return Number((results[0] as any)?.count || 0);
+}
+
+async function recordImageUse(): Promise<void> {
+    await queryD1(
+        "INSERT INTO image_usage (day, count) VALUES (?, 1) ON CONFLICT(day) DO UPDATE SET count = count + 1",
+        [utcDay()]
+    );
 }
 
 /** Whether the chosen provider has what it needs. */
@@ -183,6 +210,15 @@ export async function generatePostImage(opts: {
         );
     }
 
+    // The cap is checked before any work is done, so a day that is full costs
+    // nothing further (not even the text model's brief).
+    const used = await imagesUsedToday();
+    if (used >= cfg.dailyLimit) {
+        throw new Error(
+            `Today's limit of ${cfg.dailyLimit} generated images is used up (${used} made). It resets at midnight UTC; the limit can be changed on the Settings page.`
+        );
+    }
+
     const prompt = await generateImagePrompt({
         businessName: opts.businessName,
         summary: opts.summary,
@@ -190,6 +226,7 @@ export async function generatePostImage(opts: {
     });
     const { bytes, contentType } = cfg.provider === "gemini" ? await geminiImage(prompt, cfg) : await cloudflareImage(prompt, cfg);
     const { url } = await uploadImage(bytes, contentType);
+    await recordImageUse();
 
     const id = crypto.randomUUID();
     const filename = `Generated: ${opts.summary.slice(0, 60).replace(/\s+/g, " ").trim()}`;

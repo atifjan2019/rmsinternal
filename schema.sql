@@ -61,3 +61,9 @@ CREATE TABLE IF NOT EXISTS app_settings (
     value TEXT NOT NULL,
     updated_at TEXT
 );
+
+-- Generated post images per day (UTC, as Cloudflare counts its allowance), for the daily cap.
+CREATE TABLE IF NOT EXISTS image_usage (
+    day TEXT PRIMARY KEY,
+    count INTEGER NOT NULL DEFAULT 0
+);

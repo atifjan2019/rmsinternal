@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
 
-type Key = "AI_API_KEY" | "AI_BASE_URL" | "AI_MODEL" | "AI_PROXY_KEY" | "IMAGE_PROVIDER" | "IMAGE_API_KEY" | "IMAGE_MODEL" | "CF_AI_ACCOUNT_ID" | "CF_AI_TOKEN";
+type Key = "AI_API_KEY" | "AI_BASE_URL" | "AI_MODEL" | "AI_PROXY_KEY" | "IMAGE_PROVIDER" | "IMAGE_API_KEY" | "IMAGE_MODEL" | "CF_AI_ACCOUNT_ID" | "CF_AI_TOKEN" | "IMAGE_DAILY_LIMIT";
 type Field = { value: string; set: boolean; source: "saved" | "env" | "default" | "none" };
-type Current = Record<Key, Field>;
+type Current = Record<Key, Field> & { usage?: { today: number; limit: number } };
 
 const FIELDS: { key: Key; label: string; secret: boolean; hint: string; placeholder: string; group: "ai" | "image"; provider?: "gemini" | "cloudflare"; select?: { value: string; label: string }[] }[] = [
     {
@@ -77,6 +77,14 @@ const FIELDS: { key: Key; label: string; secret: boolean; hint: string; placehol
         provider: "gemini",
     },
     {
+        key: "IMAGE_DAILY_LIMIT",
+        label: "Images per day (all businesses)",
+        secret: false,
+        hint: "A cap so the free Cloudflare allowance is never used up: 10,000 neurons a day covers about 170 images, so 100 leaves plenty spare. Resets at midnight UTC. Leave blank for 100.",
+        placeholder: "100",
+        group: "image",
+    },
+    {
         key: "IMAGE_MODEL",
         label: "Image model",
         secret: false,
@@ -95,7 +103,7 @@ const SOURCE_LABEL: Record<Field["source"], string> = {
 
 export default function Settings() {
     const [current, setCurrent] = useState<Current | null>(null);
-    const [draft, setDraft] = useState<Record<Key, string>>({ AI_API_KEY: "", AI_BASE_URL: "", AI_MODEL: "", AI_PROXY_KEY: "", IMAGE_PROVIDER: "", IMAGE_API_KEY: "", IMAGE_MODEL: "", CF_AI_ACCOUNT_ID: "", CF_AI_TOKEN: "" });
+    const [draft, setDraft] = useState<Record<Key, string>>({ AI_API_KEY: "", AI_BASE_URL: "", AI_MODEL: "", AI_PROXY_KEY: "", IMAGE_PROVIDER: "", IMAGE_API_KEY: "", IMAGE_MODEL: "", CF_AI_ACCOUNT_ID: "", CF_AI_TOKEN: "", IMAGE_DAILY_LIMIT: "" });
     const [loadError, setLoadError] = useState("");
     const [saving, setSaving] = useState(false);
     const [testing, setTesting] = useState(false);
@@ -118,6 +126,7 @@ export default function Settings() {
                     IMAGE_MODEL: data.IMAGE_MODEL?.source === "saved" ? data.IMAGE_MODEL.value : "",
                     CF_AI_ACCOUNT_ID: data.CF_AI_ACCOUNT_ID?.source === "saved" ? data.CF_AI_ACCOUNT_ID.value : "",
                     CF_AI_TOKEN: "",
+                    IMAGE_DAILY_LIMIT: data.IMAGE_DAILY_LIMIT?.source === "saved" ? data.IMAGE_DAILY_LIMIT.value : "",
                 });
             })
             .catch((e) => setLoadError(e.message));
@@ -231,6 +240,11 @@ export default function Settings() {
                                         <div className="border-t border-slate-100 pt-6">
                                             <h2 className="text-lg font-bold text-slate-900">Post images</h2>
                                             <p className="mt-1 text-sm text-slate-500">Pictures for Google posts, made to match each post's text. Cloudflare's allowance is free; Gemini costs a few pence an image.</p>
+                                            {current.usage && (
+                                                <p className="mt-2 inline-block rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700">
+                                                    Today: {current.usage.today} of {current.usage.limit} images used
+                                                </p>
+                                            )}
                                         </div>
                                     )}
                                     <div>

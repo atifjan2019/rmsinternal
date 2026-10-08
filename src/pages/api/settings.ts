@@ -2,7 +2,7 @@ import type { APIRoute } from "astro";
 import { verifySession } from "../../lib/auth";
 import { AI_SETTING_KEYS, deleteSetting, getAiConfig, maskSecret, setSetting, type AiSettingKey } from "../../lib/settings";
 import { testAiConnection } from "../../lib/ai";
-import { IMAGE_SETTING_KEYS, getImageConfig } from "../../lib/images";
+import { IMAGE_SETTING_KEYS, getImageConfig, imagesUsedToday } from "../../lib/images";
 
 const SECRET_KEYS: AiSettingKey[] = ["AI_API_KEY", "AI_PROXY_KEY"];
 const ALL_KEYS: readonly string[] = [...AI_SETTING_KEYS, ...IMAGE_SETTING_KEYS];
@@ -30,6 +30,8 @@ async function describe() {
         IMAGE_MODEL: { value: img.model, set: !!img.model, source: img.source.IMAGE_MODEL },
         CF_AI_ACCOUNT_ID: { value: img.cfAccountId, set: !!img.cfAccountId, source: img.source.CF_AI_ACCOUNT_ID },
         CF_AI_TOKEN: { value: maskSecret(img.cfToken), set: !!img.cfToken, source: img.source.CF_AI_TOKEN },
+        IMAGE_DAILY_LIMIT: { value: String(img.dailyLimit), set: true, source: img.source.IMAGE_DAILY_LIMIT },
+        usage: { today: await imagesUsedToday().catch(() => 0), limit: img.dailyLimit },
     };
 }
 
@@ -61,6 +63,9 @@ export const PUT: APIRoute = async ({ request }) => {
             const value = typeof body[key] === "string" ? (body[key] as string).trim() : "";
             if (key === "IMAGE_PROVIDER" && value && value !== "gemini" && value !== "cloudflare") {
                 return json({ error: "Image provider must be cloudflare or gemini" }, 400);
+            }
+            if (key === "IMAGE_DAILY_LIMIT" && value && !/^\d{1,4}$/.test(value)) {
+                return json({ error: "The daily image limit must be a whole number" }, 400);
             }
             if (key === "AI_BASE_URL" && value && !/^https?:\/\//i.test(value)) {
                 return json({ error: "The base URL must start with http:// or https://" }, 400);
