@@ -54,9 +54,12 @@ async function chatAnthropic(cfg: AiConfig, opts: ChatOptions): Promise<string> 
             "Content-Type": "application/json",
         },
         // No temperature: current Claude models reject it as deprecated.
+        // Thinking is switched off: these are short replies, and a model that
+        // thinks first can spend the whole token allowance before writing one.
         body: JSON.stringify({
             model: cfg.model,
-            max_tokens: opts.maxTokens,
+            max_tokens: Math.max(opts.maxTokens, 600),
+            thinking: { type: "disabled" },
             system: opts.system,
             messages: [{ role: "user", content: opts.user }],
         }),
