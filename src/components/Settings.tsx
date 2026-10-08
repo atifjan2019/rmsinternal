@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from "react";
 
-type Key = "AI_API_KEY" | "AI_BASE_URL" | "AI_MODEL" | "AI_PROXY_KEY" | "IMAGE_API_KEY" | "IMAGE_MODEL";
+type Key = "AI_API_KEY" | "AI_BASE_URL" | "AI_MODEL" | "AI_PROXY_KEY" | "IMAGE_PROVIDER" | "IMAGE_API_KEY" | "IMAGE_MODEL" | "CF_AI_ACCOUNT_ID" | "CF_AI_TOKEN";
 type Field = { value: string; set: boolean; source: "saved" | "env" | "default" | "none" };
 type Current = Record<Key, Field>;
 
-const FIELDS: { key: Key; label: string; secret: boolean; hint: string; placeholder: string; group: "ai" | "image" }[] = [
+const FIELDS: { key: Key; label: string; secret: boolean; hint: string; placeholder: string; group: "ai" | "image"; provider?: "gemini" | "cloudflare"; select?: { value: string; label: string }[] }[] = [
     {
         key: "AI_API_KEY",
         label: "AI API key",
@@ -38,19 +38,50 @@ const FIELDS: { key: Key; label: string; secret: boolean; hint: string; placehol
         group: "ai",
     },
     {
-        key: "IMAGE_API_KEY",
-        label: "Gemini API key (for post images)",
+        key: "IMAGE_PROVIDER",
+        label: "Image service",
+        secret: false,
+        hint: "Cloudflare Workers AI has a free daily allowance (about 20 images a day) and uses your existing Cloudflare account. Gemini makes better pictures but needs a paid Google key.",
+        placeholder: "",
+        group: "image",
+        select: [
+            { value: "cloudflare", label: "Cloudflare Workers AI (free allowance)" },
+            { value: "gemini", label: "Google Gemini (paid key)" },
+        ],
+    },
+    {
+        key: "CF_AI_ACCOUNT_ID",
+        label: "Cloudflare account ID",
+        secret: false,
+        hint: "From the Cloudflare dashboard home page. Already filled from the server when blank.",
+        placeholder: "32 characters",
+        group: "image",
+        provider: "cloudflare",
+    },
+    {
+        key: "CF_AI_TOKEN",
+        label: "Cloudflare API token (Workers AI)",
         secret: true,
-        hint: "From aistudio.google.com. With this set, each queued post gets a Generate image button, and the daily auto posts make an image for a business that has no photos of its own.",
+        hint: "Cloudflare dashboard > My Profile > API Tokens > Create Token > Workers AI template (Read). It only needs Workers AI.",
+        placeholder: "",
+        group: "image",
+        provider: "cloudflare",
+    },
+    {
+        key: "IMAGE_API_KEY",
+        label: "Gemini API key",
+        secret: true,
+        hint: "From aistudio.google.com, on a key with billing switched on: Google makes no images on its free tier.",
         placeholder: "AIza...",
         group: "image",
+        provider: "gemini",
     },
     {
         key: "IMAGE_MODEL",
         label: "Image model",
         secret: false,
-        hint: "Leave blank for gemini-3.1-flash-lite-image (about 3p an image). gemini-nano-banana-2.1 is the fuller model at about the same price for 1K images.",
-        placeholder: "gemini-3.1-flash-lite-image",
+        hint: "Leave blank for the service's default (FLUX.1 schnell on Cloudflare, gemini-3.1-flash-lite-image on Gemini).",
+        placeholder: "",
         group: "image",
     },
 ];
@@ -64,7 +95,7 @@ const SOURCE_LABEL: Record<Field["source"], string> = {
 
 export default function Settings() {
     const [current, setCurrent] = useState<Current | null>(null);
-    const [draft, setDraft] = useState<Record<Key, string>>({ AI_API_KEY: "", AI_BASE_URL: "", AI_MODEL: "", AI_PROXY_KEY: "", IMAGE_API_KEY: "", IMAGE_MODEL: "" });
+    const [draft, setDraft] = useState<Record<Key, string>>({ AI_API_KEY: "", AI_BASE_URL: "", AI_MODEL: "", AI_PROXY_KEY: "", IMAGE_PROVIDER: "", IMAGE_API_KEY: "", IMAGE_MODEL: "", CF_AI_ACCOUNT_ID: "", CF_AI_TOKEN: "" });
     const [loadError, setLoadError] = useState("");
     const [saving, setSaving] = useState(false);
     const [testing, setTesting] = useState(false);
@@ -82,8 +113,11 @@ export default function Settings() {
                     AI_BASE_URL: data.AI_BASE_URL.source === "saved" ? data.AI_BASE_URL.value : "",
                     AI_MODEL: data.AI_MODEL.source === "saved" ? data.AI_MODEL.value : "",
                     AI_PROXY_KEY: "",
+                    IMAGE_PROVIDER: data.IMAGE_PROVIDER?.value || "cloudflare",
                     IMAGE_API_KEY: "",
                     IMAGE_MODEL: data.IMAGE_MODEL?.source === "saved" ? data.IMAGE_MODEL.value : "",
+                    CF_AI_ACCOUNT_ID: data.CF_AI_ACCOUNT_ID?.source === "saved" ? data.CF_AI_ACCOUNT_ID.value : "",
+                    CF_AI_TOKEN: "",
                 });
             })
             .catch((e) => setLoadError(e.message));
@@ -113,7 +147,7 @@ export default function Settings() {
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
             setCurrent(data);
-            setDraft((d) => ({ ...d, AI_API_KEY: "", AI_PROXY_KEY: "", IMAGE_API_KEY: "" }));
+            setDraft((d) => ({ ...d, AI_API_KEY: "", AI_PROXY_KEY: "", IMAGE_API_KEY: "", CF_AI_TOKEN: "" }));
             setClearing({});
             setNotice({ tone: "ok", text: "Saved. Replies and posts use the new connection from now on." });
         } catch (e: any) {
@@ -189,18 +223,32 @@ export default function Settings() {
                             {FIELDS.map((f, i) => {
                                 const cur = current[f.key];
                                 if (!cur) return null;
+                                const chosenProvider = draft.IMAGE_PROVIDER || current.IMAGE_PROVIDER?.value || "cloudflare";
+                                if (f.provider && f.provider !== chosenProvider) return null;
                                 const heading = f.group === "image" && FIELDS[i - 1]?.group !== "image";
                                 return (<React.Fragment key={f.key}>
                                     {heading && (
                                         <div className="border-t border-slate-100 pt-6">
                                             <h2 className="text-lg font-bold text-slate-900">Post images</h2>
-                                            <p className="mt-1 text-sm text-slate-500">Pictures for Google posts, made with Google's Gemini image model to match each post's text. Each image costs a few pence, and needs a paid Gemini API key (the free tier does not make images).</p>
+                                            <p className="mt-1 text-sm text-slate-500">Pictures for Google posts, made to match each post's text. Cloudflare's allowance is free; Gemini costs a few pence an image.</p>
                                         </div>
                                     )}
                                     <div>
                                         <label htmlFor={f.key} className="mb-2 block text-sm font-semibold text-slate-700">
                                             {f.label}
                                         </label>
+                                        {f.select ? (
+                                            <select
+                                                id={f.key}
+                                                value={draft[f.key] || cur.value}
+                                                onChange={(e) => setDraft((d) => ({ ...d, [f.key]: e.target.value }))}
+                                                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-[#EE314F] focus:bg-white"
+                                            >
+                                                {f.select.map((o) => (
+                                                    <option key={o.value} value={o.value}>{o.label}</option>
+                                                ))}
+                                            </select>
+                                        ) : (
                                         <input
                                             id={f.key}
                                             type={f.secret ? "password" : "text"}
@@ -212,6 +260,7 @@ export default function Settings() {
                                             placeholder={f.secret && cur.set ? `Leave blank to keep ${cur.value}` : f.placeholder}
                                             className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition-all focus:border-[#EE314F] focus:bg-white focus:ring-4 focus:ring-[#EE314F]/10 disabled:opacity-50"
                                         />
+                                        )}
                                         <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
                                             <span>
                                                 {f.hint}{" "}

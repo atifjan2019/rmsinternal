@@ -12,15 +12,23 @@ import { uploadImage } from "./r2";
 import { getSettings } from "./settings";
 import { queryD1 } from "./storage";
 
-export const IMAGE_SETTING_KEYS = ["IMAGE_API_KEY", "IMAGE_MODEL"] as const;
+export const IMAGE_SETTING_KEYS = ["IMAGE_PROVIDER", "IMAGE_API_KEY", "IMAGE_MODEL", "CF_AI_ACCOUNT_ID", "CF_AI_TOKEN"] as const;
 // The cheapest current image model (about 3p an image); posts need nothing more.
 const DEFAULT_MODEL = "gemini-3.1-flash-lite-image";
 
+export type ImageProvider = "gemini" | "cloudflare";
+type Source = "saved" | "env" | "default" | "none";
+
 export interface ImageConfig {
+    /** Which service draws the pictures. Cloudflare has a free daily allowance; Gemini needs a paid key. */
+    provider: ImageProvider;
     apiKey: string;
     model: string;
-    source: { IMAGE_API_KEY: "saved" | "env" | "none"; IMAGE_MODEL: "saved" | "env" | "default" };
+    cfAccountId: string;
+    cfToken: string;
+    source: Record<(typeof IMAGE_SETTING_KEYS)[number], Source>;
 }
+const CF_MODEL = "@cf/black-forest-labs/flux-1-schnell";
 
 export async function getImageConfig(): Promise<ImageConfig> {
     let saved: Record<string, string> = {};
@@ -29,20 +37,70 @@ export async function getImageConfig(): Promise<ImageConfig> {
     } catch (err) {
         console.error("app_settings read failed, using environment:", (err as Error).message);
     }
-    const envKey = import.meta.env.IMAGE_API_KEY || "";
-    const envModel = import.meta.env.IMAGE_MODEL || "";
+    const env: Record<string, string> = {
+        IMAGE_PROVIDER: import.meta.env.IMAGE_PROVIDER || "",
+        IMAGE_API_KEY: import.meta.env.IMAGE_API_KEY || "",
+        IMAGE_MODEL: import.meta.env.IMAGE_MODEL || "",
+        // The D1 account is the same Cloudflare account, so it is the default.
+        CF_AI_ACCOUNT_ID: import.meta.env.CF_AI_ACCOUNT_ID || import.meta.env.CF_ACCOUNT_ID || "",
+        CF_AI_TOKEN: import.meta.env.CF_AI_TOKEN || "",
+    };
+    const defaults: Record<string, string> = { IMAGE_PROVIDER: "cloudflare", IMAGE_MODEL: "" };
+    const pick = (key: (typeof IMAGE_SETTING_KEYS)[number]): [string, Source] =>
+        saved[key] ? [saved[key], "saved"] : env[key] ? [env[key], "env"] : defaults[key] ? [defaults[key], "default"] : ["", "none"];
+    const [provider, s1] = pick("IMAGE_PROVIDER");
+    const [apiKey, s2] = pick("IMAGE_API_KEY");
+    const [model, s3] = pick("IMAGE_MODEL");
+    const [cfAccountId, s4] = pick("CF_AI_ACCOUNT_ID");
+    const [cfToken, s5] = pick("CF_AI_TOKEN");
+    const p: ImageProvider = provider === "gemini" ? "gemini" : "cloudflare";
     return {
-        apiKey: saved.IMAGE_API_KEY || envKey,
-        model: saved.IMAGE_MODEL || envModel || DEFAULT_MODEL,
-        source: {
-            IMAGE_API_KEY: saved.IMAGE_API_KEY ? "saved" : envKey ? "env" : "none",
-            IMAGE_MODEL: saved.IMAGE_MODEL ? "saved" : envModel ? "env" : "default",
-        },
+        provider: p,
+        apiKey,
+        model: model || (p === "gemini" ? DEFAULT_MODEL : CF_MODEL),
+        cfAccountId,
+        cfToken,
+        source: { IMAGE_PROVIDER: s1, IMAGE_API_KEY: s2, IMAGE_MODEL: model ? s3 : "default", CF_AI_ACCOUNT_ID: s4, CF_AI_TOKEN: s5 },
     };
 }
 
+/** Whether the chosen provider has what it needs. */
+export function imageProviderReady(cfg: ImageConfig): boolean {
+    return cfg.provider === "gemini" ? !!cfg.apiKey : !!(cfg.cfAccountId && cfg.cfToken);
+}
+
 export async function imagesConfigured(): Promise<boolean> {
-    return !!(await getImageConfig()).apiKey;
+    return imageProviderReady(await getImageConfig());
+}
+
+/** One image from Cloudflare Workers AI (FLUX.1 schnell): free daily allowance, JPEG back as base64. */
+async function cloudflareImage(prompt: string, cfg: ImageConfig): Promise<{ bytes: ArrayBuffer; contentType: string }> {
+    const res = await fetch(
+        `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(cfg.cfAccountId)}/ai/run/${cfg.model}`,
+        {
+            method: "POST",
+            headers: { Authorization: `Bearer ${cfg.cfToken}`, "Content-Type": "application/json" },
+            // The model takes up to 2048 characters; 8 steps is its best quality.
+            body: JSON.stringify({ prompt: prompt.slice(0, 2000), steps: 8 }),
+        }
+    );
+    const raw = await res.text();
+    let data: any = {};
+    try {
+        data = JSON.parse(raw);
+    } catch {
+        throw new Error(`Image API returned non-JSON (HTTP ${res.status}): ${raw.slice(0, 200)}`);
+    }
+    if (!res.ok || data.success === false) {
+        const msg = data.errors?.map((e: any) => e.message).join("; ") || `HTTP ${res.status}`;
+        throw new Error(`Image generation failed: ${msg}`);
+    }
+    const b64 = data.result?.image || data.image;
+    if (!b64) throw new Error(`Image generation returned no image: ${raw.slice(0, 200)}`);
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return { bytes: bytes.buffer, contentType: "image/jpeg" };
 }
 
 /** One image from Gemini (Nano Banana) through the Interactions API, as bytes plus its type. */
@@ -111,8 +169,12 @@ export async function generatePostImage(opts: {
     knowledge?: string;
 }): Promise<GeneratedImage> {
     const cfg = await getImageConfig();
-    if (!cfg.apiKey) {
-        throw new Error("Image generation is not set up: add a Gemini API key on the Settings page.");
+    if (!imageProviderReady(cfg)) {
+        throw new Error(
+            cfg.provider === "gemini"
+                ? "Image generation is not set up: add a Gemini API key on the Settings page."
+                : "Image generation is not set up: add your Cloudflare account ID and a Workers AI token on the Settings page."
+        );
     }
 
     const prompt = await generateImagePrompt({
@@ -120,7 +182,7 @@ export async function generatePostImage(opts: {
         summary: opts.summary,
         knowledge: opts.knowledge,
     });
-    const { bytes, contentType } = await geminiImage(prompt, cfg);
+    const { bytes, contentType } = cfg.provider === "gemini" ? await geminiImage(prompt, cfg) : await cloudflareImage(prompt, cfg);
     const { url } = await uploadImage(bytes, contentType);
 
     const id = crypto.randomUUID();

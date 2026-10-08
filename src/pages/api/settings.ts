@@ -25,8 +25,11 @@ async function describe() {
         AI_BASE_URL: { value: cfg.baseUrl, set: !!cfg.baseUrl, source: cfg.source.AI_BASE_URL },
         AI_MODEL: { value: cfg.model, set: !!cfg.model, source: cfg.source.AI_MODEL },
         AI_PROXY_KEY: { value: maskSecret(cfg.proxyKey), set: !!cfg.proxyKey, source: cfg.source.AI_PROXY_KEY },
+        IMAGE_PROVIDER: { value: img.provider, set: true, source: img.source.IMAGE_PROVIDER },
         IMAGE_API_KEY: { value: maskSecret(img.apiKey), set: !!img.apiKey, source: img.source.IMAGE_API_KEY },
         IMAGE_MODEL: { value: img.model, set: !!img.model, source: img.source.IMAGE_MODEL },
+        CF_AI_ACCOUNT_ID: { value: img.cfAccountId, set: !!img.cfAccountId, source: img.source.CF_AI_ACCOUNT_ID },
+        CF_AI_TOKEN: { value: maskSecret(img.cfToken), set: !!img.cfToken, source: img.source.CF_AI_TOKEN },
     };
 }
 
@@ -56,6 +59,9 @@ export const PUT: APIRoute = async ({ request }) => {
         for (const key of ALL_KEYS) {
             if (!(key in body)) continue;
             const value = typeof body[key] === "string" ? (body[key] as string).trim() : "";
+            if (key === "IMAGE_PROVIDER" && value && value !== "gemini" && value !== "cloudflare") {
+                return json({ error: "Image provider must be cloudflare or gemini" }, 400);
+            }
             if (key === "AI_BASE_URL" && value && !/^https?:\/\//i.test(value)) {
                 return json({ error: "The base URL must start with http:// or https://" }, 400);
             }
