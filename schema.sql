@@ -53,3 +53,11 @@ CREATE TABLE IF NOT EXISTS replied_reviews (
     reply_comment TEXT,
     replied_at TEXT
 );
+
+-- App settings editable from /settings (AI API key, base URL, model, relay key).
+-- A saved value overrides the environment variable of the same name.
+CREATE TABLE IF NOT EXISTS app_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TEXT
+);

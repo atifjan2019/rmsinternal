@@ -1,0 +1,16 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Settings from '../components/Settings';
+import { verifySession } from '../lib/auth';
+
+const cookie = Astro.cookies.get("admin_session")?.value;
+const user = await verifySession(cookie);
+
+if (!user) {
+  return Astro.redirect("/login");
+}
+---
+
+<Layout title="Settings | Review Management System">
+  <Settings client:load />
+</Layout>

@@ -74,7 +74,7 @@ export async function runAutoReply(locationName?: string): Promise<AutoReplyResu
 
                 const star = String(starNum);
                 const template = settings.templates[star];
-                const useAi = settings.mode === "ai" && aiConfigured();
+                const useAi = settings.mode === "ai" && (await aiConfigured());
 
                 // Template mode with no template for this rating -> intentionally skip
                 if (!useAi && (!template || !template.trim())) {

@@ -147,7 +147,7 @@ export async function listImages(locationName: string) {
 export async function generatePostFor(locationName: string): Promise<QueuedPost | null> {
     const settings = (await getPostSettings(locationName))[0];
     if (!settings) return null;
-    if (!aiConfigured()) throw new Error("AI is not configured (AI_API_KEY missing).");
+    if (!(await aiConfigured())) throw new Error("AI is not configured: add an API key on the Settings page.");
 
     // The knowledge base written for review replies describes the business, so
     // posts reuse it rather than asking for the same details twice.

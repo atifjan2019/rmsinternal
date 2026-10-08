@@ -14,7 +14,7 @@ export const POST: APIRoute = async ({ request }) => {
         return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
     }
 
-    if (!aiConfigured()) {
+    if (!(await aiConfigured())) {
         return new Response(JSON.stringify({ error: "AI_API_KEY environment variable is not set." }), { status: 400 });
     }
 

@@ -20,7 +20,7 @@ export const GET: APIRoute = async ({ request }) => {
             connected: !!row,
             email: row?.email || null,
             configured: !!(import.meta.env.GOOGLE_CLIENT_ID && import.meta.env.GOOGLE_CLIENT_SECRET),
-            ai: aiConfigured(),
+            ai: await aiConfigured(),
         }),
         { status: 200, headers: { "Content-Type": "application/json" } }
     );

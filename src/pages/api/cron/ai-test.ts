@@ -9,8 +9,8 @@ export const GET: APIRoute = async ({ request }) => {
         return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
     }
 
-    if (!aiConfigured()) {
-        return new Response(JSON.stringify({ error: "AI_API_KEY not set" }), { status: 400 });
+    if (!(await aiConfigured())) {
+        return new Response(JSON.stringify({ error: "No AI API key set" }), { status: 400 });
     }
 
     try {
