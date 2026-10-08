@@ -100,6 +100,55 @@ export async function imagesConfigured(): Promise<boolean> {
     return imageProviderReady(await getImageConfig());
 }
 
+/** What the settings page learns from a connection check. */
+export interface ImageCheck {
+    ok: boolean;
+    detail: string;
+}
+
+/**
+ * Checks one picture service's credentials without drawing anything, so a
+ * check costs no allowance: Cloudflare's model catalogue and Gemini's model
+ * list both need a valid key and nothing more.
+ */
+export async function testImageConnection(provider: ImageProvider, cfg: ImageConfig): Promise<ImageCheck> {
+    const read = async (res: Response) => {
+        const raw = await res.text();
+        try {
+            return { raw, data: JSON.parse(raw) };
+        } catch {
+            throw new Error(`Returned non-JSON (HTTP ${res.status}): ${raw.slice(0, 160)}`);
+        }
+    };
+    if (provider === "cloudflare") {
+        if (!cfg.cfAccountId || !cfg.cfToken) throw new Error("Add the Cloudflare account ID and a Workers AI token first.");
+        const url = `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(cfg.cfAccountId)}/ai/models/search?search=flux&per_page=5`;
+        const res = await fetch(url, { headers: { Authorization: `Bearer ${cfg.cfToken}` } });
+        const { data } = await read(res);
+        if (!res.ok || data.success === false) {
+            throw new Error(data.errors?.map((e: any) => e.message).join("; ") || `HTTP ${res.status}`);
+        }
+        const names: string[] = (data.result || []).map((m: any) => m.name);
+        const model = cfg.model || CF_MODEL;
+        if (names.length && !names.includes(model)) {
+            return { ok: true, detail: `Token works, but the model ${model} was not in Cloudflare's list; pictures may fail.` };
+        }
+        return { ok: true, detail: `Token works. Model ${model} is available.` };
+    }
+    if (!cfg.apiKey) throw new Error("Add a Gemini API key first.");
+    const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200", {
+        headers: { "x-goog-api-key": cfg.apiKey },
+    });
+    const { data } = await read(res);
+    if (!res.ok) throw new Error(data.error?.message || `HTTP ${res.status}`);
+    const names: string[] = (data.models || []).map((m: any) => String(m.name || "").replace(/^models\//, ""));
+    const model = cfg.model || DEFAULT_MODEL;
+    if (names.length && !names.includes(model)) {
+        return { ok: true, detail: `Key works, but the model ${model} was not in Google's list; pictures may fail.` };
+    }
+    return { ok: true, detail: `Key works. Model ${model} is available.` };
+}
+
 /** One image from Cloudflare Workers AI (FLUX.1 schnell): free daily allowance, JPEG back as base64. */
 async function cloudflareImage(prompt: string, cfg: ImageConfig): Promise<{ bytes: ArrayBuffer; contentType: string }> {
     const url = `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(cfg.cfAccountId)}/ai/run/${cfg.model}`;

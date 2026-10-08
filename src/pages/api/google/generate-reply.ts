@@ -15,7 +15,7 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     if (!(await aiConfigured())) {
-        return new Response(JSON.stringify({ error: "AI_API_KEY environment variable is not set." }), { status: 400 });
+        return new Response(JSON.stringify({ error: "No AI connection is set up. Add a key on the Settings page." }), { status: 400 });
     }
 
     try {

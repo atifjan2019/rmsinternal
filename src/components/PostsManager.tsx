@@ -367,16 +367,15 @@ export default function PostsManager({
                 <>
                     {/* Settings */}
                     <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-white p-8">
-                        <div className="absolute left-0 top-0 h-full w-2 bg-primary" />
                         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
                             <div>
                                 <h4 className="text-lg font-bold text-slate-900">{selected.title}</h4>
                                 <p className="mt-1 text-sm text-slate-500">
-                                    Posts are written from this business's knowledge base in Auto-Reply Settings.
+                                    Posts are written from the business notes on the Auto-reply page.
                                 </p>
                             </div>
                             <label className="flex cursor-pointer items-center gap-3">
-                                <span className="text-sm font-bold text-slate-700">Enabled</span>
+                                <span className="text-sm font-bold text-slate-700">Switched on</span>
                                 <input
                                     type="checkbox"
                                     checked={settings.enabled}
@@ -497,7 +496,7 @@ export default function PostsManager({
                                 disabled={busy === "settings"}
                                 className="rounded-xl bg-primary px-8 py-3 text-sm font-bold text-white transition-all hover:bg-primary-hover disabled:opacity-50"
                             >
-                                {busy === "settings" ? "Saving" : "Save Settings"}
+                                {busy === "settings" ? "Saving" : "Save settings"}
                             </button>
                         </div>
                     </div>

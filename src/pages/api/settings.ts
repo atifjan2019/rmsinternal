@@ -1,11 +1,23 @@
 import type { APIRoute } from "astro";
 import { verifySession } from "../../lib/auth";
-import { AI_SETTING_KEYS, deleteSetting, getAiConfig, maskSecret, setSetting, type AiSettingKey } from "../../lib/settings";
+import {
+    AI_SETTING_KEYS,
+    ANTHROPIC_BASE_URL,
+    deleteSetting,
+    getAiConnections,
+    maskSecret,
+    setSetting,
+    type AiConfig,
+    type AiProvider,
+} from "../../lib/settings";
 import { testAiConnection } from "../../lib/ai";
-import { IMAGE_SETTING_KEYS, getImageConfig, imagesUsedToday } from "../../lib/images";
+import { IMAGE_SETTING_KEYS, getImageConfig, imageProviderReady, imagesUsedToday, testImageConnection, type ImageProvider } from "../../lib/images";
 
-const SECRET_KEYS: AiSettingKey[] = ["AI_API_KEY", "AI_PROXY_KEY"];
+const SECRET_KEYS = new Set(["ANTHROPIC_API_KEY", "AGENTROUTER_API_KEY", "AGENTROUTER_PROXY_KEY", "IMAGE_API_KEY", "CF_AI_TOKEN"]);
 const ALL_KEYS: readonly string[] = [...AI_SETTING_KEYS, ...IMAGE_SETTING_KEYS];
+
+type Connection = AiProvider | ImageProvider;
+const CONNECTIONS: Connection[] = ["anthropic", "agentrouter", "cloudflare", "gemini"];
 
 async function checkAuth(request: Request): Promise<boolean> {
     const cookies = request.headers.get("cookie") || "";
@@ -16,22 +28,57 @@ async function checkAuth(request: Request): Promise<boolean> {
 const json = (body: unknown, status = 200) =>
     new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
-/** The AI connection as it stands, with secrets masked to their last four characters. */
+const field = (value: string, source: string, secret = false) => ({ value: secret ? maskSecret(value) : value, set: !!value, source });
+
+/**
+ * Every connection as it stands, with secrets masked to their last four
+ * characters, plus which connection is in use for text and for pictures.
+ */
 async function describe() {
-    const cfg = await getAiConfig();
+    const ai = await getAiConnections();
     const img = await getImageConfig();
+    const a = ai.anthropic;
+    const r = ai.agentrouter;
     return {
-        AI_API_KEY: { value: maskSecret(cfg.apiKey), set: !!cfg.apiKey, source: cfg.source.AI_API_KEY },
-        AI_BASE_URL: { value: cfg.baseUrl, set: !!cfg.baseUrl, source: cfg.source.AI_BASE_URL },
-        AI_MODEL: { value: cfg.model, set: !!cfg.model, source: cfg.source.AI_MODEL },
-        AI_PROXY_KEY: { value: maskSecret(cfg.proxyKey), set: !!cfg.proxyKey, source: cfg.source.AI_PROXY_KEY },
-        IMAGE_PROVIDER: { value: img.provider, set: true, source: img.source.IMAGE_PROVIDER },
-        IMAGE_API_KEY: { value: maskSecret(img.apiKey), set: !!img.apiKey, source: img.source.IMAGE_API_KEY },
-        IMAGE_MODEL: { value: img.model, set: !!img.model, source: img.source.IMAGE_MODEL },
-        CF_AI_ACCOUNT_ID: { value: img.cfAccountId, set: !!img.cfAccountId, source: img.source.CF_AI_ACCOUNT_ID },
-        CF_AI_TOKEN: { value: maskSecret(img.cfToken), set: !!img.cfToken, source: img.source.CF_AI_TOKEN },
-        IMAGE_DAILY_LIMIT: { value: String(img.dailyLimit), set: true, source: img.source.IMAGE_DAILY_LIMIT },
-        usage: { today: await imagesUsedToday().catch(() => 0), limit: img.dailyLimit },
+        text: { active: ai.active, source: ai.activeSource },
+        pictures: { active: img.provider, source: img.source.IMAGE_PROVIDER },
+        connections: {
+            anthropic: {
+                configured: !!a.apiKey,
+                fields: {
+                    ANTHROPIC_API_KEY: field(a.apiKey, a.source.ANTHROPIC_API_KEY, true),
+                    ANTHROPIC_MODEL: field(a.model, a.source.ANTHROPIC_MODEL),
+                },
+            },
+            agentrouter: {
+                configured: !!r.apiKey,
+                fields: {
+                    AGENTROUTER_API_KEY: field(r.apiKey, r.source.AGENTROUTER_API_KEY, true),
+                    AGENTROUTER_BASE_URL: field(r.baseUrl, r.source.AGENTROUTER_BASE_URL),
+                    AGENTROUTER_MODEL: field(r.model, r.source.AGENTROUTER_MODEL),
+                    AGENTROUTER_PROXY_KEY: field(r.proxyKey, r.source.AGENTROUTER_PROXY_KEY, true),
+                },
+            },
+            cloudflare: {
+                configured: !!(img.cfAccountId && img.cfToken),
+                fields: {
+                    CF_AI_ACCOUNT_ID: field(img.cfAccountId, img.source.CF_AI_ACCOUNT_ID),
+                    CF_AI_TOKEN: field(img.cfToken, img.source.CF_AI_TOKEN, true),
+                },
+            },
+            gemini: {
+                configured: !!img.apiKey,
+                fields: {
+                    IMAGE_API_KEY: field(img.apiKey, img.source.IMAGE_API_KEY, true),
+                    IMAGE_MODEL: field(img.provider === "gemini" ? img.model : "", img.source.IMAGE_MODEL),
+                },
+            },
+        },
+        limits: {
+            IMAGE_DAILY_LIMIT: field(String(img.dailyLimit), img.source.IMAGE_DAILY_LIMIT),
+            usage: { today: await imagesUsedToday().catch(() => 0), limit: img.dailyLimit },
+            picturesReady: imageProviderReady(img),
+        },
     };
 }
 
@@ -61,13 +108,16 @@ export const PUT: APIRoute = async ({ request }) => {
         for (const key of ALL_KEYS) {
             if (!(key in body)) continue;
             const value = typeof body[key] === "string" ? (body[key] as string).trim() : "";
+            if (key === "AI_PROVIDER" && value && value !== "anthropic" && value !== "agentrouter") {
+                return json({ error: "The text AI must be anthropic or agentrouter" }, 400);
+            }
             if (key === "IMAGE_PROVIDER" && value && value !== "gemini" && value !== "cloudflare") {
-                return json({ error: "Image provider must be cloudflare or gemini" }, 400);
+                return json({ error: "The picture service must be cloudflare or gemini" }, 400);
             }
             if (key === "IMAGE_DAILY_LIMIT" && value && !/^\d{1,4}$/.test(value)) {
                 return json({ error: "The daily image limit must be a whole number" }, 400);
             }
-            if (key === "AI_BASE_URL" && value && !/^https?:\/\//i.test(value)) {
+            if (key === "AGENTROUTER_BASE_URL" && value && !/^https?:\/\//i.test(value)) {
                 return json({ error: "The base URL must start with http:// or https://" }, 400);
             }
             if (value) await setSetting(key, value);
@@ -80,8 +130,9 @@ export const PUT: APIRoute = async ({ request }) => {
 };
 
 /**
- * Tests a connection. Secrets left blank in the request mean "use what is
- * saved", so the current key can be tested without being typed again.
+ * Tests one connection, named by `connection`. Secrets left blank in the
+ * request mean "use what is saved", so a saved key can be tested without
+ * being typed again. Nothing is saved.
  */
 export const POST: APIRoute = async ({ request }) => {
     if (!(await checkAuth(request))) return json({ error: "Unauthorized" }, 401);
@@ -91,22 +142,46 @@ export const POST: APIRoute = async ({ request }) => {
     } catch {
         /* an empty body tests the saved connection */
     }
+    const connection = body.connection as Connection;
+    if (!CONNECTIONS.includes(connection)) return json({ error: "Unknown connection" }, 400);
+    const str = (k: string) => (typeof body[k] === "string" ? (body[k] as string).trim() : "");
+    const started = Date.now();
     try {
-        const current = await getAiConfig();
-        const str = (k: string) => (typeof body[k] === "string" ? (body[k] as string).trim() : "");
+        if (connection === "anthropic" || connection === "agentrouter") {
+            const all = await getAiConnections();
+            const saved = all[connection];
+            const cfg: AiConfig =
+                connection === "anthropic"
+                    ? {
+                          provider: "anthropic",
+                          apiKey: str("ANTHROPIC_API_KEY") || saved.apiKey,
+                          baseUrl: ANTHROPIC_BASE_URL,
+                          model: str("ANTHROPIC_MODEL") || saved.model,
+                          proxyKey: "",
+                      }
+                    : {
+                          provider: "agentrouter",
+                          apiKey: str("AGENTROUTER_API_KEY") || saved.apiKey,
+                          baseUrl: (str("AGENTROUTER_BASE_URL") || saved.baseUrl).replace(/\/$/, ""),
+                          model: str("AGENTROUTER_MODEL") || saved.model,
+                          proxyKey: str("AGENTROUTER_PROXY_KEY") || saved.proxyKey,
+                      };
+            if (!cfg.apiKey) return json({ ok: false, error: "No API key yet." });
+            const reply = await testAiConnection(cfg);
+            return json({ ok: true, ms: Date.now() - started, detail: `${cfg.model} replied: "${reply}"` });
+        }
+        const img = await getImageConfig();
         const cfg = {
-            ...current,
-            apiKey: str("AI_API_KEY") || current.apiKey,
-            baseUrl: (str("AI_BASE_URL") || current.baseUrl).replace(/\/$/, ""),
-            model: str("AI_MODEL") || current.model,
-            proxyKey: SECRET_KEYS.includes("AI_PROXY_KEY") && "AI_PROXY_KEY" in body && !str("AI_PROXY_KEY")
-                ? current.proxyKey
-                : str("AI_PROXY_KEY") || current.proxyKey,
+            ...img,
+            provider: connection,
+            apiKey: str("IMAGE_API_KEY") || img.apiKey,
+            model: str("IMAGE_MODEL") || (img.provider === connection ? img.model : ""),
+            cfAccountId: str("CF_AI_ACCOUNT_ID") || img.cfAccountId,
+            cfToken: str("CF_AI_TOKEN") || img.cfToken,
         };
-        const started = Date.now();
-        const reply = await testAiConnection(cfg);
-        return json({ ok: true, reply, ms: Date.now() - started, model: cfg.model, baseUrl: cfg.baseUrl });
+        const result = await testImageConnection(connection, cfg);
+        return json({ ok: result.ok, ms: Date.now() - started, detail: result.detail });
     } catch (err: any) {
-        return json({ ok: false, error: err.message || "Test failed" });
+        return json({ ok: false, ms: Date.now() - started, error: (err.message || "Test failed").replace(/^AI connection test failed: /, "") });
     }
 };

@@ -1,9 +1,9 @@
 /**
- * AI reply generation via an OpenAI-compatible chat completions API (Agent Router).
+ * AI text generation: review replies, post copy and image briefs.
  *
- * The connection (API key, base URL, model, relay key) is read at request time
- * from the app settings (/settings), which fall back to the AI_API_KEY,
- * AI_BASE_URL, AI_MODEL and AI_PROXY_KEY environment variables.
+ * The connection in use (Claude, or Agent Router / any OpenAI-compatible API)
+ * is read at request time from the app settings (/settings), which fall back
+ * to the environment.
  */
 import { getAiConfig, type AiConfig } from "./settings";
 
@@ -22,16 +22,16 @@ interface ChatOptions {
     what: string;
 }
 
-/** Whether a base URL is Anthropic's API, which has its own request shape. */
-const isAnthropic = (baseUrl: string) => /^https:\/\/api\.anthropic\.com(\/|$)/i.test(baseUrl);
+/** Whether a connection speaks Anthropic's Messages API rather than OpenAI's shape. */
+const isAnthropic = (cfg: AiConfig) => cfg.provider === "anthropic" || /^https:\/\/api\.anthropic\.com(\/|$)/i.test(cfg.baseUrl);
 
 /** One chat completion, returning the reply text. Shared by every generator below. */
 async function chat(opts: ChatOptions): Promise<string> {
     const cfg = opts.config ?? (await getAiConfig());
     if (!cfg.apiKey) {
-        throw new Error("No AI API key is set. Add one on the Settings page (or set AI_API_KEY).");
+        throw new Error("No AI API key is set. Add one on the Settings page.");
     }
-    return isAnthropic(cfg.baseUrl) ? chatAnthropic(cfg, opts) : chatOpenAiCompatible(cfg, opts);
+    return isAnthropic(cfg) ? chatAnthropic(cfg, opts) : chatOpenAiCompatible(cfg, opts);
 }
 
 /** Reads a provider's reply body, surfacing a non-JSON page (a WAF challenge, say) as the error. */
