@@ -53,13 +53,12 @@ async function chatAnthropic(cfg: AiConfig, opts: ChatOptions): Promise<string> 
             "anthropic-version": "2023-06-01",
             "Content-Type": "application/json",
         },
-        // No temperature: current Claude models reject it as deprecated.
-        // Thinking is switched off: these are short replies, and a model that
-        // thinks first can spend the whole token allowance before writing one.
+        // No temperature (current Claude models reject it) and no thinking
+        // setting (each model wants a different value). A model that thinks
+        // before writing gets room for both, so it cannot run out mid-thought.
         body: JSON.stringify({
             model: cfg.model,
-            max_tokens: Math.max(opts.maxTokens, 600),
-            thinking: { type: "disabled" },
+            max_tokens: Math.max(opts.maxTokens * 4, 2000),
             system: opts.system,
             messages: [{ role: "user", content: opts.user }],
         }),
