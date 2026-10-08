@@ -1,16 +1,9 @@
 ---
-import Layout from '../layouts/Layout.astro';
+import AppShell from '../layouts/AppShell.astro';
 import Settings from '../components/Settings';
-import { verifySession } from '../lib/auth';
-
-const cookie = Astro.cookies.get("admin_session")?.value;
-const user = await verifySession(cookie);
-
-if (!user) {
-  return Astro.redirect("/login");
-}
+import { pageUser, loginUrl } from '../lib/page';
+if (!(await pageUser(Astro))) return Astro.redirect(loginUrl(Astro));
 ---
-
-<Layout title="Settings | Review Management System">
+<AppShell title="Settings" description="The AI connection used for replies and posts, and how pictures are made.">
   <Settings client:load />
-</Layout>
+</AppShell>

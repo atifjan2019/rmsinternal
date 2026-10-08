@@ -7,7 +7,7 @@ import Layout from '../layouts/Layout.astro';
     <div class="w-full max-w-md">
       <!-- Brand -->
       <div class="mb-8 flex flex-col items-center text-center">
-        <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#EE314F] text-white shadow-lg shadow-[#EE314F]/25">
+        <div class="flex h-14 w-14 items-center justify-center rounded-lg bg-[#EE314F] text-white shadow-lg shadow-[#EE314F]/25">
           <svg class="h-8 w-8" fill="currentColor" viewBox="0 0 24 24">
             <path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
           </svg>
@@ -17,8 +17,7 @@ import Layout from '../layouts/Layout.astro';
       </div>
 
       <!-- Card -->
-      <div class="relative overflow-hidden rounded-[2rem] border border-slate-200 bg-white p-8 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.08)] sm:p-10">
-        <div class="absolute left-0 top-0 h-full w-2 bg-[#EE314F]"></div>
+      <div class="relative overflow-hidden rounded-xl border border-slate-200 bg-white p-8 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.08)] sm:p-10">
 
         <h2 class="text-xl font-bold text-slate-900">Welcome back</h2>
         <p class="mt-1 text-sm text-slate-500">Sign in to your admin dashboard</p>
@@ -33,7 +32,7 @@ import Layout from '../layouts/Layout.astro';
               placeholder="you@example.com"
               required
               autocomplete="username"
-              class="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 py-3.5 text-slate-900 placeholder-slate-400 transition-all focus:border-[#EE314F] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#EE314F]/5"
+              class="w-full rounded-lg border border-slate-200 bg-slate-50/50 px-4 py-3.5 text-slate-900 placeholder-slate-400 transition-all focus:border-[#EE314F] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#EE314F]/5"
             />
           </div>
 
@@ -47,7 +46,7 @@ import Layout from '../layouts/Layout.astro';
                 placeholder="••••••••"
                 required
                 autocomplete="current-password"
-                class="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 py-3.5 pr-12 text-slate-900 placeholder-slate-400 transition-all focus:border-[#EE314F] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#EE314F]/5"
+                class="w-full rounded-lg border border-slate-200 bg-slate-50/50 px-4 py-3.5 pr-12 text-slate-900 placeholder-slate-400 transition-all focus:border-[#EE314F] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#EE314F]/5"
               />
               <button
                 type="button"
@@ -66,12 +65,12 @@ import Layout from '../layouts/Layout.astro';
             </div>
           </div>
 
-          <div id="error-message" class="hidden rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-600"></div>
+          <div id="error-message" class="hidden rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-600"></div>
 
           <button
             type="submit"
             id="submit-btn"
-            class="w-full rounded-2xl bg-[#EE314F] px-8 py-4 text-sm font-bold text-white shadow-lg shadow-[#EE314F]/20 transition-all hover:bg-[#d42a45] hover:shadow-xl hover:shadow-[#EE314F]/25 active:scale-[0.98] disabled:opacity-60"
+            class="w-full rounded-lg bg-[#EE314F] px-8 py-4 text-sm font-bold text-white shadow-lg shadow-[#EE314F]/20 transition-all hover:bg-[#d42a45] hover:shadow-xl hover:shadow-[#EE314F]/25 active:scale-[0.98] disabled:opacity-60"
           >
             <span class="btn-text">Sign In</span>
             <span class="btn-loader hidden">
@@ -85,7 +84,7 @@ import Layout from '../layouts/Layout.astro';
       </div>
 
       <p class="mt-8 text-center text-xs font-bold uppercase tracking-[0.2em] text-slate-300">
-        © 2026 Webspires · Review Management Pro
+        Webspires Review Manager
       </p>
     </div>
   </div>
@@ -122,7 +121,8 @@ import Layout from '../layouts/Layout.astro';
       });
 
       if (response.ok) {
-        window.location.href = '/dashboard';
+        const next = new URLSearchParams(window.location.search).get('next');
+        window.location.href = next && next.startsWith('/') && !next.startsWith('//') ? next : '/dashboard';
         return;
       }
 

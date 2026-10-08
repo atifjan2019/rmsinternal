@@ -1,0 +1,11 @@
+---
+import AppShell from '../../../layouts/AppShell.astro';
+import AutoReplySettingsForm from '../../../components/AutoReplySettingsForm';
+import { pageUser, loginUrl } from '../../../lib/page';
+if (!(await pageUser(Astro))) return Astro.redirect(loginUrl(Astro));
+const { id } = Astro.params;
+if (!id) return Astro.redirect('/reviews');
+---
+<AppShell title="Auto-reply" crumbs={[{ label: 'Google Reviews', href: '/reviews' }]}>
+  <AutoReplySettingsForm client:load locationId={id} />
+</AppShell>

@@ -1,0 +1,11 @@
+---
+import AppShell from '../../../layouts/AppShell.astro';
+import BusinessPosts from '../../../components/BusinessPosts';
+import { pageUser, loginUrl } from '../../../lib/page';
+if (!(await pageUser(Astro))) return Astro.redirect(loginUrl(Astro));
+const { id } = Astro.params;
+if (!id) return Astro.redirect('/posts');
+---
+<AppShell title="Posts" crumbs={[{ label: 'Auto Posts', href: '/posts' }]} section="posts">
+  <BusinessPosts client:load locationId={id} />
+</AppShell>

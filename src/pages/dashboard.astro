@@ -1,16 +1,9 @@
 ---
-import Layout from '../layouts/Layout.astro';
-import DashboardComponent from '../components/Dashboard';
-import { verifySession } from '../lib/auth';
-
-const cookie = Astro.cookies.get("admin_session")?.value;
-const user = await verifySession(cookie);
-
-if (!user) {
-  return Astro.redirect("/login");
-}
+import AppShell from '../layouts/AppShell.astro';
+import Overview from '../components/Overview';
+import { pageUser, loginUrl } from '../lib/page';
+if (!(await pageUser(Astro))) return Astro.redirect(loginUrl(Astro));
 ---
-
-<Layout title="Dashboard | Review Management System">
-  <DashboardComponent client:load />
-</Layout>
+<AppShell title="Dashboard" description="How your reviews and posts stand today.">
+  <Overview client:load />
+</AppShell>

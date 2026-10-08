@@ -1,0 +1,10 @@
+---
+import AppShell from '../../layouts/AppShell.astro';
+import ReviewPages from '../../components/ReviewPages';
+import { pageUser, loginUrl } from '../../lib/page';
+if (!(await pageUser(Astro))) return Astro.redirect(loginUrl(Astro));
+---
+<AppShell title="Review Pages" description="Links that send happy customers to Google and collect private feedback from the rest.">
+  <a slot="actions" href="/review-pages/new" class="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary-hover">New review page</a>
+  <ReviewPages client:load />
+</AppShell>

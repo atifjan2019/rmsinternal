@@ -189,29 +189,8 @@ export default function Settings() {
     }
 
     return (
-        <div className="min-h-screen bg-[#F8FAFC] font-sans">
-            <header className="sticky top-0 z-50 glass border-b border-slate-200/60">
-                <div className="mx-auto flex max-w-3xl items-center justify-between px-6 py-4 sm:px-8">
-                    <div className="flex items-center gap-3">
-                        <a href="/dashboard" className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#EE314F] text-white shadow-lg shadow-[#EE314F]/20" aria-label="Back to dashboard">
-                            <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-                            </svg>
-                        </a>
-                        <div>
-                            <h1 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">Settings</h1>
-                            <p className="hidden text-xs font-medium uppercase tracking-wider text-slate-400 sm:block">Webspires Systems</p>
-                        </div>
-                    </div>
-                    <a href="/dashboard" className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-50">
-                        Back to dashboard
-                    </a>
-                </div>
-            </header>
-
-            <main className="mx-auto max-w-3xl px-6 py-12 sm:px-8">
-                <div className="relative overflow-hidden rounded-[2rem] border border-slate-200 bg-white p-8 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.06)]">
-                    <div className="absolute left-0 top-0 h-full w-2 bg-[#EE314F]" />
+        <div className="mx-auto max-w-3xl">
+                <div className="rounded-xl border border-slate-200 bg-white p-6 sm:p-8">
                     <h2 className="text-lg font-bold text-slate-900">AI connection</h2>
                     <p className="mt-1 text-sm text-slate-500">
                         The API key and model used to write review replies and auto posts. Saved values take effect at once; a blank field falls back to the server environment.
@@ -272,7 +251,7 @@ export default function Settings() {
                                             disabled={!!clearing[f.key]}
                                             onChange={(e) => setDraft((d) => ({ ...d, [f.key]: e.target.value }))}
                                             placeholder={f.secret && cur.set ? `Leave blank to keep ${cur.value}` : f.placeholder}
-                                            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition-all focus:border-[#EE314F] focus:bg-white focus:ring-4 focus:ring-[#EE314F]/10 disabled:opacity-50"
+                                            className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/15 disabled:opacity-50"
                                         />
                                         )}
                                         <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
@@ -312,17 +291,17 @@ export default function Settings() {
                                 <button
                                     type="submit"
                                     disabled={saving || testing}
-                                    className="rounded-xl bg-slate-900 px-6 py-3 text-sm font-bold text-white shadow-sm transition-all hover:bg-slate-800 disabled:opacity-60"
+                                    className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-50"
                                 >
-                                    {saving ? "Saving…" : "Save"}
+                                    {saving ? "Saving" : "Save"}
                                 </button>
                                 <button
                                     type="button"
                                     onClick={test}
                                     disabled={saving || testing}
-                                    className="rounded-xl border border-slate-200 bg-white px-6 py-3 text-sm font-bold text-slate-700 transition-all hover:bg-slate-50 disabled:opacity-60"
+                                    className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
                                 >
-                                    {testing ? "Testing…" : "Test connection"}
+                                    {testing ? "Testing" : "Test connection"}
                                 </button>
                             </div>
                             <p className="text-xs text-slate-400">
@@ -331,7 +310,6 @@ export default function Settings() {
                         </form>
                     )}
                 </div>
-            </main>
         </div>
     );
 }

@@ -81,26 +81,26 @@ export default function NotificationsBell() {
             <button
                 onClick={toggle}
                 aria-label="Notifications"
-                className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition-all hover:bg-slate-50 hover:text-slate-900"
+                className="relative flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900"
             >
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                 </svg>
                 {unread > 0 && (
-                    <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#EE314F] px-1 text-[11px] font-bold text-white shadow">
+                    <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-primary px-1 text-[11px] font-bold text-white shadow">
                         {unread > 9 ? "9+" : unread}
                     </span>
                 )}
             </button>
 
             {open && (
-                <div className="absolute right-0 top-12 z-50 w-96 max-w-[90vw] overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_20px_50px_-15px_rgba(0,0,0,0.15)]">
+                <div className="absolute right-0 top-12 z-50 w-96 max-w-[90vw] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_20px_50px_-15px_rgba(0,0,0,0.15)]">
                     <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3.5">
                         <p className="text-sm font-bold text-slate-900">Notifications</p>
                         {unread > 0 && (
                             <button
                                 onClick={markAllRead}
-                                className="text-xs font-bold text-[#EE314F] transition-colors hover:text-[#d42a45]"
+                                className="text-xs font-bold text-primary transition-colors hover:text-primary-hover"
                             >
                                 Mark all as read
                             </button>
@@ -117,12 +117,12 @@ export default function NotificationsBell() {
                                         key={n.id}
                                         href={locId ? `/business/${locId}` : "#"}
                                         className={`block border-b border-slate-50 px-5 py-4 transition-colors hover:bg-slate-50 ${
-                                            !n.read ? "bg-[#EE314F]/[0.03]" : ""
+                                            !n.read ? "bg-primary/[0.03]" : ""
                                         }`}
                                     >
                                         <span className="flex items-start gap-3">
-                                            <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-base">
-                                                ⭐
+                                            <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-500">
+                                                <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>
                                             </span>
                                             <span className="min-w-0">
                                                 <span className="block text-sm font-bold text-slate-900">{n.title}</span>
@@ -141,7 +141,7 @@ export default function NotificationsBell() {
                                                         markOneRead(n.id);
                                                     }}
                                                     title="Mark as read"
-                                                    className="ml-auto mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[#EE314F] transition-all hover:bg-[#EE314F]/10"
+                                                    className="ml-auto mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-primary transition-all hover:bg-primary/10"
                                                 >
                                                     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />

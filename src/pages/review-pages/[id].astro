@@ -1,0 +1,11 @@
+---
+import AppShell from '../../layouts/AppShell.astro';
+import ReviewPageForm from '../../components/ReviewPageForm';
+import { pageUser, loginUrl } from '../../lib/page';
+if (!(await pageUser(Astro))) return Astro.redirect(loginUrl(Astro));
+const { id } = Astro.params;
+if (!id) return Astro.redirect('/review-pages');
+---
+<AppShell title="Edit review page" crumbs={[{ label: 'Review Pages', href: '/review-pages' }]} section="review-pages">
+  <ReviewPageForm client:load id={id} />
+</AppShell>

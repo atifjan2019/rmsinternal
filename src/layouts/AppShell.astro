@@ -1,0 +1,136 @@
+---
+/**
+ * The admin's frame: a sidebar with the main sections on desktop, a top bar
+ * with the page title, and a drawer menu on phones. Every admin page sits
+ * inside it, so the navigation is the same everywhere and the address bar
+ * always says where you are.
+ */
+import Layout from './Layout.astro';
+import NotificationsBell from '../components/NotificationsBell';
+import LogoutButton from '../components/LogoutButton';
+
+interface Props {
+  title: string;
+  /** Shown under the title, one line. */
+  description?: string;
+  /** Breadcrumb trail above the title; the current page is added by the caller as text. */
+  crumbs?: { label: string; href?: string }[];
+  /** Which sidebar item is current; defaults to the first path segment. */
+  section?: string;
+}
+
+const { title, description, crumbs = [], section } = Astro.props;
+const path = Astro.url.pathname;
+const current = section || (path.split('/')[1] || 'dashboard');
+
+const NAV = [
+  { key: 'dashboard', href: '/dashboard', label: 'Dashboard', icon: 'home' },
+  { key: 'reviews', href: '/reviews', label: 'Google Reviews', icon: 'star' },
+  { key: 'posts', href: '/posts', label: 'Auto Posts', icon: 'post' },
+  { key: 'review-pages', href: '/review-pages', label: 'Review Pages', icon: 'link' },
+  { key: 'settings', href: '/settings', label: 'Settings', icon: 'cog' },
+];
+// A business page belongs to Google Reviews in the sidebar.
+const active = current === 'business' ? 'reviews' : current;
+---
+
+<Layout title={`${title} | Review Manager`}>
+  <div class="min-h-screen bg-slate-50 text-slate-900">
+    <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[60] focus:rounded-lg focus:bg-white focus:px-3 focus:py-2 focus:text-sm focus:font-semibold focus:shadow">Skip to content</a>
+
+    <!-- Sidebar (desktop) -->
+    <aside class="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-slate-200 bg-white lg:flex" aria-label="Main navigation">
+      <a href="/dashboard" class="flex items-center gap-3 border-b border-slate-200 px-6 py-5">
+        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-white">
+          <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
+        </span>
+        <span>
+          <span class="block text-base font-bold leading-tight text-slate-900">Review Manager</span>
+          <span class="block text-[11px] font-medium uppercase tracking-wider text-slate-400">Webspires</span>
+        </span>
+      </a>
+      <nav class="flex-1 space-y-1 px-3 py-4">
+        {NAV.map((item) => (
+          <a
+            href={item.href}
+            aria-current={active === item.key ? 'page' : undefined}
+            class={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${
+              active === item.key ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+            }`}
+          >
+            <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              {item.icon === 'home' && <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l9-9 9 9M5 10v10a1 1 0 001 1h4v-6h4v6h4a1 1 0 001-1V10"/>}
+              {item.icon === 'star' && <path stroke-linecap="round" stroke-linejoin="round" d="M11.5 3.5l2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4-3.9-3.8 5.4-.8z"/>}
+              {item.icon === 'post' && <path stroke-linecap="round" stroke-linejoin="round" d="M4 5h16v14H4zM8 9h8M8 13h5"/>}
+              {item.icon === 'link' && <path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>}
+              {item.icon === 'cog' && <><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></>}
+            </svg>
+            {item.label}
+          </a>
+        ))}
+      </nav>
+      <div class="border-t border-slate-200 px-3 py-4">
+        <LogoutButton client:load />
+      </div>
+    </aside>
+
+    <!-- Mobile drawer: a checkbox toggles it without any script -->
+    <input type="checkbox" id="nav-toggle" class="peer sr-only" />
+    <label for="nav-toggle" class="fixed inset-0 z-40 hidden bg-slate-900/40 peer-checked:block lg:hidden" aria-hidden="true"></label>
+    <aside class="fixed inset-y-0 left-0 z-50 flex w-72 -translate-x-full flex-col bg-white shadow-xl transition-transform peer-checked:translate-x-0 lg:hidden" aria-label="Menu">
+      <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+        <span class="text-base font-bold">Menu</span>
+        <label for="nav-toggle" class="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100" aria-label="Close menu">
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
+        </label>
+      </div>
+      <nav class="flex-1 space-y-1 px-3 py-4">
+        {NAV.map((item) => (
+          <a href={item.href} aria-current={active === item.key ? 'page' : undefined}
+            class={`block rounded-lg px-3 py-2.5 text-sm font-semibold ${active === item.key ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-100'}`}>
+            {item.label}
+          </a>
+        ))}
+      </nav>
+      <div class="border-t border-slate-200 px-3 py-4">
+        <LogoutButton client:load />
+      </div>
+    </aside>
+
+    <!-- Top bar + page -->
+    <div class="lg:pl-64">
+      <header class="sticky top-0 z-30 border-b border-slate-200 bg-white">
+        <div class="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3 sm:px-6 lg:px-8">
+          <label for="nav-toggle" class="flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg border border-slate-200 text-slate-600 lg:hidden" aria-label="Open menu">
+            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M4 7h16M4 12h16M4 17h16"/></svg>
+          </label>
+          <div class="min-w-0 flex-1">
+            {crumbs.length > 0 && (
+              <nav aria-label="Breadcrumb" class="mb-0.5 flex flex-wrap items-center gap-1 text-xs text-slate-500">
+                {crumbs.map((c) => (
+                  <>
+                    {c.href ? <a href={c.href} class="hover:text-slate-900 hover:underline">{c.label}</a> : <span>{c.label}</span>}
+                    <span aria-hidden="true" class="text-slate-300">/</span>
+                  </>
+                ))}
+                <span class="text-slate-700">{title}</span>
+              </nav>
+            )}
+            <h1 class="truncate text-lg font-bold leading-tight text-slate-900 sm:text-xl">{title}</h1>
+            {description && <p class="truncate text-sm text-slate-500">{description}</p>}
+          </div>
+          <div class="flex shrink-0 items-center gap-2">
+            <slot name="actions" />
+            <NotificationsBell client:load />
+          </div>
+        </div>
+      </header>
+      <main id="main" class="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        <slot />
+      </main>
+      <footer class="mx-auto max-w-6xl px-4 py-8 text-xs text-slate-400 sm:px-6 lg:px-8">
+        &copy; {new Date().getFullYear()} Webspires. Review Manager.
+      </footer>
+    </div>
+  </div>
+</Layout>

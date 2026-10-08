@@ -1,0 +1,9 @@
+---
+import AppShell from '../layouts/AppShell.astro';
+import PostsOverview from '../components/PostsOverview';
+import { pageUser, loginUrl } from '../lib/page';
+if (!(await pageUser(Astro))) return Astro.redirect(loginUrl(Astro));
+---
+<AppShell title="Auto Posts" description="Posts written for your Google Business Profiles, and what is waiting for your approval.">
+  <PostsOverview client:load />
+</AppShell>

@@ -1,0 +1,9 @@
+---
+import AppShell from '../../layouts/AppShell.astro';
+import ReviewPageForm from '../../components/ReviewPageForm';
+import { pageUser, loginUrl } from '../../lib/page';
+if (!(await pageUser(Astro))) return Astro.redirect(loginUrl(Astro));
+---
+<AppShell title="New review page" crumbs={[{ label: 'Review Pages', href: '/review-pages' }]} section="review-pages">
+  <ReviewPageForm client:load />
+</AppShell>

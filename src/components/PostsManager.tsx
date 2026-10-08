@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import type { GbpLocation } from "./GoogleReviews";
+import type { GbpLocation } from "./BusinessList";
+import { Card, CardHeader, ConfirmButton, Notice, Spinner, btn, input, label } from "./ui";
 
 interface PostSettings {
     location_name: string;
@@ -87,6 +88,7 @@ export default function PostsManager({
     const [picking, setPicking] = useState<string | null>(null);
     const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
     const [dragging, setDragging] = useState(false);
+    const [confirmingImage, setConfirmingImage] = useState<string | null>(null);
     const fileRef = useRef<HTMLInputElement>(null);
 
     const load = useCallback(async () => {
@@ -202,7 +204,6 @@ export default function PostsManager({
     }
 
     async function publish(id: string) {
-        if (!confirm("Publish this post to your Google Business Profile now?")) return;
         const data = await post({ action: "publish", id }, `publish:${id}`);
         if (data) {
             setNotice("Published to Google.");
@@ -230,8 +231,6 @@ export default function PostsManager({
             setError("Post text cannot be empty.");
             return;
         }
-        if (!confirm("Update this post on your live Google Business Profile?")) return;
-
         const data = await post({ action: "edit-published", id: p.id, summary }, `editlive:${p.id}`);
         if (data) {
             setNotice("Post updated on Google.");
@@ -246,11 +245,6 @@ export default function PostsManager({
 
     async function removePost(p: QueuedPost) {
         const live = p.status === "published";
-        const message = live
-            ? "Delete this post from your Google Business Profile? This cannot be undone."
-            : "Delete this post from the list?";
-        if (!confirm(message)) return;
-
         const data = await post({ action: "delete", id: p.id }, `del:${p.id}`);
         if (data) {
             setNotice(live ? "Post deleted from Google." : "Post removed.");
@@ -348,7 +342,6 @@ export default function PostsManager({
     }
 
     async function deleteImage(id: string) {
-        if (!confirm("Delete this image from the library?")) return;
         try {
             const res = await fetch(`/api/posts/images?id=${encodeURIComponent(id)}`, { method: "DELETE" });
             const data = await res.json();
@@ -359,16 +352,7 @@ export default function PostsManager({
         }
     }
 
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center py-24 text-slate-400">
-                <svg className="h-8 w-8 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                </svg>
-            </div>
-        );
-    }
+    if (loading) return <Spinner />;
 
     const visibleQueue = selected ? queue.filter((p) => p.location_name === selected.name) : queue;
     const drafts = visibleQueue.filter((p) => p.status === "draft");
@@ -376,70 +360,14 @@ export default function PostsManager({
 
     return (
         <div className="space-y-6">
-            {error && (
-                <div className="rounded-2xl border border-red-100 bg-red-50 px-5 py-4 text-sm font-semibold text-red-600">
-                    {error}
-                </div>
-            )}
-            {notice && (
-                <div className="rounded-2xl border border-green-100 bg-green-50 px-5 py-3 text-sm font-semibold text-green-700">
-                    {notice}
-                </div>
-            )}
-
-            {/* Business picker — dashboard only */}
-            {!singleLocation && (
-            <div className="rounded-[2rem] border border-slate-200 bg-white p-6">
-                <h3 className="mb-1 text-lg font-bold text-slate-900">Auto Posts</h3>
-                <p className="mb-5 text-sm text-slate-500">
-                    Keep your Business Profiles active with scheduled posts. Choose a business to set it up.
-                </p>
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {locations.map((loc) => {
-                        const s = allSettings.find((x) => x.location_name === loc.name);
-                        return (
-                            <a
-                                key={loc.name}
-                                href={`/business/${loc.name.split("/").pop()}?tab=posts`}
-                                className="group flex min-w-0 flex-col rounded-2xl border-2 border-slate-100 bg-slate-50/50 p-4 text-left transition-all hover:border-[#EE314F]/40 hover:bg-white hover:shadow-md"
-                            >
-                                <span className="flex w-full min-w-0 items-start justify-between gap-2">
-                                    <span className="min-w-0 truncate text-sm font-bold text-slate-900 group-hover:text-[#EE314F]">
-                                        {loc.title}
-                                    </span>
-                                    {s?.enabled && (
-                                        <span
-                                            className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                                                s.auto_publish ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
-                                            }`}
-                                        >
-                                            {s.auto_publish ? "Auto" : "Review"}
-                                        </span>
-                                    )}
-                                </span>
-                                <span className="mt-1 block truncate text-xs text-slate-400">
-                                    {s?.last_generated_at
-                                        ? `Last post ${new Date(s.last_generated_at).toLocaleDateString()}`
-                                        : "Not set up yet"}
-                                </span>
-                                <span className="mt-3 flex items-center gap-1 text-xs font-bold text-slate-400 group-hover:text-[#EE314F]">
-                                    Set up posts
-                                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                                    </svg>
-                                </span>
-                            </a>
-                        );
-                    })}
-                </div>
-            </div>
-            )}
+            {error && <Notice tone="bad" onClose={() => setError(null)}>{error}</Notice>}
+            {notice && <Notice tone="ok" onClose={() => setNotice(null)}>{notice}</Notice>}
 
             {settings && selected && (
                 <>
                     {/* Settings */}
-                    <div className="relative overflow-hidden rounded-[2rem] border border-slate-200 bg-white p-8">
-                        <div className="absolute left-0 top-0 h-full w-2 bg-[#EE314F]" />
+                    <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-white p-8">
+                        <div className="absolute left-0 top-0 h-full w-2 bg-primary" />
                         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
                             <div>
                                 <h4 className="text-lg font-bold text-slate-900">{selected.title}</h4>
@@ -453,7 +381,7 @@ export default function PostsManager({
                                     type="checkbox"
                                     checked={settings.enabled}
                                     onChange={(e) => setSettings({ ...settings, enabled: e.target.checked })}
-                                    className="h-5 w-5 accent-[#EE314F]"
+                                    className="h-5 w-5 accent-primary"
                                 />
                             </label>
                         </div>
@@ -464,7 +392,7 @@ export default function PostsManager({
                                 <select
                                     value={settings.frequency_days}
                                     onChange={(e) => setSettings({ ...settings, frequency_days: Number(e.target.value) })}
-                                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm focus:border-[#EE314F] focus:bg-white focus:outline-none"
+                                    className="w-full rounded-lg border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm focus:border-primary focus:bg-white focus:outline-none"
                                 >
                                     <option value={3}>Every 3 days</option>
                                     <option value={7}>Weekly</option>
@@ -478,7 +406,7 @@ export default function PostsManager({
                                 <select
                                     value={settings.cta_type}
                                     onChange={(e) => setSettings({ ...settings, cta_type: e.target.value })}
-                                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm focus:border-[#EE314F] focus:bg-white focus:outline-none"
+                                    className="w-full rounded-lg border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm focus:border-primary focus:bg-white focus:outline-none"
                                 >
                                     {CTA_OPTIONS.map((o) => (
                                         <option key={o.value} value={o.value}>
@@ -496,7 +424,7 @@ export default function PostsManager({
                                         value={settings.cta_url}
                                         onChange={(e) => setSettings({ ...settings, cta_url: e.target.value })}
                                         placeholder="https://..."
-                                        className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm focus:border-[#EE314F] focus:bg-white focus:outline-none"
+                                        className="w-full rounded-lg border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm focus:border-primary focus:bg-white focus:outline-none"
                                     />
                                 </div>
                             )}
@@ -516,17 +444,17 @@ export default function PostsManager({
                                         setSettings({ ...settings, topics: e.target.value.split("\n") })
                                     }
                                     placeholder={"Emergency callout\nTyre brands we fit\nAreas we cover"}
-                                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm focus:border-[#EE314F] focus:bg-white focus:outline-none"
+                                    className="w-full rounded-lg border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm focus:border-primary focus:bg-white focus:outline-none"
                                 />
                             </div>
 
                             <div className="sm:col-span-2">
-                                <label className="flex cursor-pointer items-start gap-3 rounded-2xl border-2 border-slate-100 p-4">
+                                <label className="flex cursor-pointer items-start gap-3 rounded-lg border-2 border-slate-100 p-4">
                                     <input
                                         type="checkbox"
                                         checked={settings.auto_publish}
                                         onChange={(e) => setSettings({ ...settings, auto_publish: e.target.checked })}
-                                        className="mt-0.5 h-5 w-5 shrink-0 accent-[#EE314F]"
+                                        className="mt-0.5 h-5 w-5 shrink-0 accent-primary"
                                     />
                                     <span>
                                         <span className="block text-sm font-bold text-slate-900">
@@ -542,13 +470,13 @@ export default function PostsManager({
                         </div>
 
                         {writing && (
-                            <div className="mt-6 rounded-2xl border border-[#EE314F]/20 bg-[#EE314F]/5 px-5 py-4" role="status">
+                            <div className="mt-6 rounded-lg border border-primary/20 bg-primary/5 px-5 py-4" role="status">
                                 <div className="flex items-center justify-between text-sm font-semibold text-slate-800">
                                     <span>{writing.stage}&hellip;</span>
                                     <span className="text-xs text-slate-500">{writing.percent}%</span>
                                 </div>
                                 <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-white">
-                                    <div className="h-full rounded-full bg-[#EE314F] transition-all duration-300" style={{ width: `${writing.percent}%` }} />
+                                    <div className="h-full rounded-full bg-primary transition-all duration-300" style={{ width: `${writing.percent}%` }} />
                                 </div>
                                 <p className="mt-2 text-xs text-slate-500">
                                     First the text, then a matching picture. About 10 to 30 seconds.
@@ -560,16 +488,16 @@ export default function PostsManager({
                             <button
                                 onClick={generateNow}
                                 disabled={busy === "generate"}
-                                className="rounded-xl border border-[#EE314F]/30 bg-[#EE314F]/5 px-5 py-3 text-sm font-bold text-[#EE314F] transition-all hover:bg-[#EE314F]/10 disabled:opacity-50"
+                                className="rounded-xl border border-primary/30 bg-primary/5 px-5 py-3 text-sm font-bold text-primary transition-all hover:bg-primary/10 disabled:opacity-50"
                             >
-                                {busy === "generate" ? "Writing..." : "✨ Write a post now"}
+                                {busy === "generate" ? "Writing" : "Write a post now"}
                             </button>
                             <button
                                 onClick={saveSettings}
                                 disabled={busy === "settings"}
-                                className="rounded-xl bg-[#EE314F] px-8 py-3 text-sm font-bold text-white transition-all hover:bg-[#d42a45] disabled:opacity-50"
+                                className="rounded-xl bg-primary px-8 py-3 text-sm font-bold text-white transition-all hover:bg-primary-hover disabled:opacity-50"
                             >
-                                {busy === "settings" ? "Saving..." : "Save Settings"}
+                                {busy === "settings" ? "Saving" : "Save Settings"}
                             </button>
                         </div>
                     </div>
@@ -589,8 +517,8 @@ export default function PostsManager({
                             );
                             if (files.length) uploadImages(files);
                         }}
-                        className={`rounded-[2rem] border bg-white p-6 transition-colors ${
-                            dragging ? "border-[#EE314F] bg-[#EE314F]/5" : "border-slate-200"
+                        className={`rounded-xl border bg-white p-6 transition-colors ${
+                            dragging ? "border-primary bg-primary/5" : "border-slate-200"
                         }`}
                     >
                         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -625,7 +553,7 @@ export default function PostsManager({
                         </div>
 
                         {imageError && (
-                            <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                            <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                                 {imageError}
                             </div>
                         )}
@@ -634,7 +562,7 @@ export default function PostsManager({
                             <div className="mb-4">
                                 <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
                                     <div
-                                        className="h-full rounded-full bg-[#EE314F] transition-all"
+                                        className="h-full rounded-full bg-primary transition-all"
                                         style={{ width: `${Math.round((uploadProgress.done / uploadProgress.total) * 100)}%` }}
                                     />
                                 </div>
@@ -652,13 +580,16 @@ export default function PostsManager({
                         ) : (
                             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
                                 {images.map((img) => (
-                                    <div key={img.id} className="group relative overflow-hidden rounded-2xl border border-slate-200">
+                                    <div key={img.id} className="group relative overflow-hidden rounded-lg border border-slate-200">
                                         <img src={img.url} alt={img.filename} className="aspect-square w-full object-cover" />
                                         <button
-                                            onClick={() => deleteImage(img.id)}
-                                            title="Delete image"
-                                            className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-lg bg-white/90 text-slate-500 opacity-0 transition-opacity hover:text-red-600 group-hover:opacity-100"
+                                            onClick={() => (confirmingImage === img.id ? deleteImage(img.id) : setConfirmingImage(img.id))}
+                                            onBlur={() => setConfirmingImage(null)}
+                                            title={confirmingImage === img.id ? "Press again to delete" : "Delete image"}
+                                            aria-label={confirmingImage === img.id ? "Press again to delete this image" : "Delete image"}
+                                            className={`absolute right-1.5 top-1.5 flex h-7 items-center justify-center rounded-md px-1.5 text-xs font-semibold transition-opacity ${confirmingImage === img.id ? "w-auto bg-red-600 text-white opacity-100" : "w-7 bg-white/90 text-slate-500 opacity-0 hover:text-red-600 group-hover:opacity-100 focus:opacity-100"}`}
                                         >
+                                            {confirmingImage === img.id ? "Delete?" : null}
                                             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M4 7h16" />
                                             </svg>
@@ -680,7 +611,7 @@ export default function PostsManager({
                     {drafts.map((p) => {
                         const isEditing = editing[p.id] !== undefined;
                         return (
-                        <div key={p.id} id={`post-${p.id}`} className="rounded-3xl border border-slate-200 bg-white p-6 scroll-mt-6">
+                        <div key={p.id} id={`post-${p.id}`} className="rounded-xl border border-slate-200 bg-white p-6 scroll-mt-6">
                             <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                                 <span className="text-sm font-bold text-slate-900">{p.location_title}</span>
                                 <span className="text-xs text-slate-400">
@@ -695,10 +626,10 @@ export default function PostsManager({
                                         <img
                                             src={p.image_url}
                                             alt=""
-                                            className="aspect-[4/3] w-full rounded-2xl border border-slate-200 object-cover"
+                                            className="aspect-[4/3] w-full rounded-lg border border-slate-200 object-cover"
                                         />
                                     ) : (
-                                        <div className="flex aspect-[4/3] w-full items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-400">
+                                        <div className="flex aspect-[4/3] w-full items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-400">
                                             No picture
                                         </div>
                                     )}
@@ -709,7 +640,7 @@ export default function PostsManager({
                                                 disabled={busy === `genimg:${p.id}`}
                                                 className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                                             >
-                                                {busy === `genimg:${p.id}` ? "Making..." : p.image_url ? "New picture" : "Make a picture"}
+                                                {busy === `genimg:${p.id}` ? "Making" : p.image_url ? "New picture" : "Make a picture"}
                                             </button>
                                         )}
                                         {images.length > 0 && (
@@ -737,7 +668,7 @@ export default function PostsManager({
                                                     key={img.id}
                                                     onClick={() => { attachImage(p, img.url); setPicking(null); }}
                                                     title={img.filename}
-                                                    className={`overflow-hidden rounded-lg border-2 ${p.image_url === img.url ? "border-[#EE314F]" : "border-transparent hover:border-slate-300"}`}
+                                                    className={`overflow-hidden rounded-lg border-2 ${p.image_url === img.url ? "border-primary" : "border-transparent hover:border-slate-300"}`}
                                                 >
                                                     <img src={img.url} alt={img.filename} className="aspect-square w-full object-cover" />
                                                 </button>
@@ -754,10 +685,10 @@ export default function PostsManager({
                                             autoFocus
                                             value={editing[p.id]}
                                             onChange={(e) => setEditing({ ...editing, [p.id]: e.target.value })}
-                                            className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm text-slate-900 focus:border-[#EE314F] focus:bg-white focus:outline-none"
+                                            className="w-full rounded-lg border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm text-slate-900 focus:border-primary focus:bg-white focus:outline-none"
                                         />
                                     ) : (
-                                        <p className="whitespace-pre-wrap rounded-2xl bg-slate-50/70 px-4 py-3 text-sm leading-relaxed text-slate-900">{p.summary}</p>
+                                        <p className="whitespace-pre-wrap rounded-lg bg-slate-50/70 px-4 py-3 text-sm leading-relaxed text-slate-900">{p.summary}</p>
                                     )}
                                     <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-400">
                                         <span>{(editing[p.id] ?? p.summary).length} characters</span>
@@ -772,7 +703,7 @@ export default function PostsManager({
                                                     disabled={busy === `save:${p.id}` || editing[p.id] === p.summary}
                                                     className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
                                                 >
-                                                    {busy === `save:${p.id}` ? "Saving..." : "Save text"}
+                                                    {busy === `save:${p.id}` ? "Saving" : "Save text"}
                                                 </button>
                                                 <button
                                                     onClick={() => setEditing((e) => { const n = { ...e }; delete n[p.id]; return n; })}
@@ -794,20 +725,12 @@ export default function PostsManager({
                             </div>
 
                             <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4">
-                                <button
-                                    onClick={() => publish(p.id)}
-                                    disabled={busy === `publish:${p.id}`}
-                                    className="rounded-xl bg-[#EE314F] px-6 py-2.5 text-sm font-bold text-white transition-all hover:bg-[#d42a45] disabled:opacity-50"
-                                >
-                                    {busy === `publish:${p.id}` ? "Publishing..." : "Publish to Google"}
-                                </button>
-                                <button
-                                    onClick={() => removePost(p)}
-                                    disabled={busy === `del:${p.id}`}
-                                    className="rounded-xl px-5 py-2.5 text-sm font-semibold text-slate-400 hover:bg-slate-100 disabled:opacity-50"
-                                >
-                                    {busy === `del:${p.id}` ? "Deleting..." : "Delete"}
-                                </button>
+                                <ConfirmButton className={btn.primary} confirmLabel="Publish now" onConfirm={() => publish(p.id)} disabled={busy === `publish:${p.id}`}>
+                                    {busy === `publish:${p.id}` ? "Publishing" : "Publish to Google"}
+                                </ConfirmButton>
+                                <ConfirmButton className={btn.ghost} confirmLabel="Delete" onConfirm={() => removePost(p)} disabled={busy === `del:${p.id}`}>
+                                    {busy === `del:${p.id}` ? "Deleting" : "Delete"}
+                                </ConfirmButton>
                             </div>
                         </div>
                         );
@@ -817,11 +740,11 @@ export default function PostsManager({
 
             {/* History */}
             {history.length > 0 && (
-                <div className="rounded-[2rem] border border-slate-200 bg-white p-6">
+                <div className="rounded-xl border border-slate-200 bg-white p-6">
                     <h4 className="text-lg font-bold text-slate-900">Recent posts</h4>
                     <p className="mb-4 mt-1 text-sm text-slate-500">
                         Text and button can be changed after publishing. To change the image, delete the post and
-                        publish a new one — Google does not allow swapping it.
+                        publish a new one: Google does not allow swapping it.
                     </p>
                     <div className="space-y-3">
                         {history.slice(0, 15).map((p) => {
@@ -845,7 +768,7 @@ export default function PostsManager({
                                                     rows={4}
                                                     value={editing[p.id]}
                                                     onChange={(e) => setEditing({ ...editing, [p.id]: e.target.value })}
-                                                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm text-slate-900 focus:border-[#EE314F] focus:bg-white focus:outline-none"
+                                                    className="w-full rounded-lg border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm text-slate-900 focus:border-primary focus:bg-white focus:outline-none"
                                                 />
                                             ) : (
                                                 <p className="text-sm text-slate-600">{p.summary}</p>
@@ -863,7 +786,7 @@ export default function PostsManager({
                                                 {p.status === "published" && !isEditing && (
                                                     <button
                                                         onClick={() => setEditing({ ...editing, [p.id]: p.summary })}
-                                                        className="text-xs font-bold text-[#EE314F] hover:underline"
+                                                        className="text-xs font-bold text-primary hover:underline"
                                                     >
                                                         Edit
                                                     </button>
@@ -871,13 +794,9 @@ export default function PostsManager({
 
                                                 {isEditing && (
                                                     <>
-                                                        <button
-                                                            onClick={() => editPublished(p)}
-                                                            disabled={busy === `editlive:${p.id}`}
-                                                            className="rounded-lg bg-[#EE314F] px-4 py-1.5 text-xs font-bold text-white hover:bg-[#d42a45] disabled:opacity-50"
-                                                        >
-                                                            {busy === `editlive:${p.id}` ? "Updating..." : "Update on Google"}
-                                                        </button>
+                                                        <ConfirmButton className={btn.small} confirmLabel="Update on Google" onConfirm={() => editPublished(p)} disabled={busy === `editlive:${p.id}`}>
+                                                            {busy === `editlive:${p.id}` ? "Updating" : "Update on Google"}
+                                                        </ConfirmButton>
                                                         <button
                                                             onClick={() =>
                                                                 setEditing((e) => {
@@ -898,17 +817,9 @@ export default function PostsManager({
                                                 )}
 
                                                 {!isEditing && (
-                                                    <button
-                                                        onClick={() => removePost(p)}
-                                                        disabled={busy === `del:${p.id}`}
-                                                        className="text-xs font-bold text-slate-400 hover:text-red-600 disabled:opacity-50"
-                                                    >
-                                                        {busy === `del:${p.id}`
-                                                            ? "Deleting..."
-                                                            : p.status === "published"
-                                                              ? "Delete from Google"
-                                                              : "Remove"}
-                                                    </button>
+                                                    <ConfirmButton className={`${btn.small} text-red-600`} confirmLabel={p.status === "published" ? "Delete from Google" : "Remove"} onConfirm={() => removePost(p)} disabled={busy === `del:${p.id}`}>
+                                                        {busy === `del:${p.id}` ? "Deleting" : p.status === "published" ? "Delete from Google" : "Remove"}
+                                                    </ConfirmButton>
                                                 )}
                                             </div>
                                         </div>
@@ -920,11 +831,6 @@ export default function PostsManager({
                 </div>
             )}
 
-            {!selected && drafts.length === 0 && history.length === 0 && (
-                <div className="rounded-3xl border border-slate-200 bg-white py-16 text-center text-slate-400">
-                    Pick a business above to set up automatic posts.
-                </div>
-            )}
         </div>
     );
 }

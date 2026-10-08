@@ -1,0 +1,9 @@
+---
+import AppShell from '../../layouts/AppShell.astro';
+import BusinessList from '../../components/BusinessList';
+import { pageUser, loginUrl } from '../../lib/page';
+if (!(await pageUser(Astro))) return Astro.redirect(loginUrl(Astro));
+---
+<AppShell title="Google Reviews" description="Your connected Google businesses. Open one to read and answer its reviews.">
+  <BusinessList client:load />
+</AppShell>

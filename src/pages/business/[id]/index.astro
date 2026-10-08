@@ -1,0 +1,14 @@
+---
+import AppShell from '../../../layouts/AppShell.astro';
+import BusinessReviews from '../../../components/BusinessReviews';
+import { pageUser, loginUrl } from '../../../lib/page';
+if (!(await pageUser(Astro))) return Astro.redirect(loginUrl(Astro));
+const { id } = Astro.params;
+if (!id) return Astro.redirect('/reviews');
+// The old address for the posts screen still works.
+if (Astro.url.searchParams.get('tab') === 'posts') return Astro.redirect(`/business/${id}/posts`, 301);
+const view = Astro.url.searchParams.get('view') === 'replied' ? 'replied' : 'new';
+---
+<AppShell title="Reviews" crumbs={[{ label: 'Google Reviews', href: '/reviews' }]}>
+  <BusinessReviews client:load locationId={id} initialView={view} />
+</AppShell>

@@ -1,0 +1,9 @@
+---
+import AppShell from '../../layouts/AppShell.astro';
+import SelectBusinesses from '../../components/SelectBusinesses';
+import { pageUser, loginUrl } from '../../lib/page';
+if (!(await pageUser(Astro))) return Astro.redirect(loginUrl(Astro));
+---
+<AppShell title="Choose businesses" description="Which of your Google businesses appear in this app." crumbs={[{ label: 'Google Reviews', href: '/reviews' }]} section="reviews">
+  <SelectBusinesses client:load />
+</AppShell>
