@@ -2,8 +2,10 @@ import type { APIRoute } from "astro";
 import { verifySession } from "../../lib/auth";
 import { AI_SETTING_KEYS, deleteSetting, getAiConfig, maskSecret, setSetting, type AiSettingKey } from "../../lib/settings";
 import { testAiConnection } from "../../lib/ai";
+import { IMAGE_SETTING_KEYS, getImageConfig } from "../../lib/images";
 
 const SECRET_KEYS: AiSettingKey[] = ["AI_API_KEY", "AI_PROXY_KEY"];
+const ALL_KEYS: readonly string[] = [...AI_SETTING_KEYS, ...IMAGE_SETTING_KEYS];
 
 async function checkAuth(request: Request): Promise<boolean> {
     const cookies = request.headers.get("cookie") || "";
@@ -17,11 +19,14 @@ const json = (body: unknown, status = 200) =>
 /** The AI connection as it stands, with secrets masked to their last four characters. */
 async function describe() {
     const cfg = await getAiConfig();
+    const img = await getImageConfig();
     return {
         AI_API_KEY: { value: maskSecret(cfg.apiKey), set: !!cfg.apiKey, source: cfg.source.AI_API_KEY },
         AI_BASE_URL: { value: cfg.baseUrl, set: !!cfg.baseUrl, source: cfg.source.AI_BASE_URL },
         AI_MODEL: { value: cfg.model, set: !!cfg.model, source: cfg.source.AI_MODEL },
         AI_PROXY_KEY: { value: maskSecret(cfg.proxyKey), set: !!cfg.proxyKey, source: cfg.source.AI_PROXY_KEY },
+        IMAGE_API_KEY: { value: maskSecret(img.apiKey), set: !!img.apiKey, source: img.source.IMAGE_API_KEY },
+        IMAGE_MODEL: { value: img.model, set: !!img.model, source: img.source.IMAGE_MODEL },
     };
 }
 
@@ -48,7 +53,7 @@ export const PUT: APIRoute = async ({ request }) => {
         return json({ error: "Invalid JSON" }, 400);
     }
     try {
-        for (const key of AI_SETTING_KEYS) {
+        for (const key of ALL_KEYS) {
             if (!(key in body)) continue;
             const value = typeof body[key] === "string" ? (body[key] as string).trim() : "";
             if (key === "AI_BASE_URL" && value && !/^https?:\/\//i.test(value)) {

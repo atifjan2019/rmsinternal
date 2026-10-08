@@ -1,6 +1,7 @@
 import { queryD1 } from "./storage";
 import { getValidAccessToken, getCachedLocations, getAutoReplySettings } from "./google";
 import { generatePostCopy, aiConfigured } from "./ai";
+import { generatePostImage, imagesConfigured } from "./images";
 
 /**
  * Google Business Profile posts: generation, queueing and publishing.
@@ -168,14 +169,22 @@ export async function generatePostFor(locationName: string): Promise<QueuedPost 
         avoid: recentSummaries,
     });
 
-    // Least-recently-used image, so a small library still rotates.
+    // Least-recently-used image, so a small library still rotates. A business
+    // with no images yet gets one made for this post, which then joins its
+    // library. A failure there is logged and the post goes on without a picture.
     const images = await listImages(locationName);
-    const image = images[0] || null;
+    let image = images[0] || null;
     if (image) {
         await queryD1("UPDATE post_images SET last_used_at = ? WHERE id = ?", [
             new Date().toISOString(),
             image.id,
         ]);
+    } else if (await imagesConfigured()) {
+        try {
+            image = await generatePostImage({ locationName, businessName: settings.location_title, summary, knowledge });
+        } catch (err) {
+            console.error("Post image generation failed:", (err as Error).message);
+        }
     }
 
     const post: QueuedPost = {

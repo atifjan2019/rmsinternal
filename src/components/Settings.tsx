@@ -1,16 +1,17 @@
 import React, { useEffect, useState } from "react";
 
-type Key = "AI_API_KEY" | "AI_BASE_URL" | "AI_MODEL" | "AI_PROXY_KEY";
+type Key = "AI_API_KEY" | "AI_BASE_URL" | "AI_MODEL" | "AI_PROXY_KEY" | "IMAGE_API_KEY" | "IMAGE_MODEL";
 type Field = { value: string; set: boolean; source: "saved" | "env" | "default" | "none" };
 type Current = Record<Key, Field>;
 
-const FIELDS: { key: Key; label: string; secret: boolean; hint: string; placeholder: string }[] = [
+const FIELDS: { key: Key; label: string; secret: boolean; hint: string; placeholder: string; group: "ai" | "image" }[] = [
     {
         key: "AI_API_KEY",
         label: "AI API key",
         secret: true,
         hint: "The key for your AI provider: Anthropic (Claude), Agent Router, or any OpenAI-compatible API. Used for review replies and auto posts.",
         placeholder: "sk-ant-... or sk-...",
+        group: "ai",
     },
     {
         key: "AI_BASE_URL",
@@ -18,6 +19,7 @@ const FIELDS: { key: Key; label: string; secret: boolean; hint: string; placehol
         secret: false,
         hint: "Where requests go. For Claude use https://api.anthropic.com/v1. Leave blank for https://agentrouter.org/v1.",
         placeholder: "https://api.anthropic.com/v1",
+        group: "ai",
     },
     {
         key: "AI_MODEL",
@@ -25,6 +27,7 @@ const FIELDS: { key: Key; label: string; secret: boolean; hint: string; placehol
         secret: false,
         hint: "The model name the provider expects, for example claude-sonnet-5-5 or claude-opus-5-5 for Claude. Leave blank for gpt-5.6-sol.",
         placeholder: "claude-sonnet-5-5",
+        group: "ai",
     },
     {
         key: "AI_PROXY_KEY",
@@ -32,6 +35,23 @@ const FIELDS: { key: Key; label: string; secret: boolean; hint: string; placehol
         secret: true,
         hint: "Only needed when the base URL is the Cloudways relay for Agent Router. Leave blank for Claude.",
         placeholder: "",
+        group: "ai",
+    },
+    {
+        key: "IMAGE_API_KEY",
+        label: "Gemini API key (for post images)",
+        secret: true,
+        hint: "From aistudio.google.com. With this set, each queued post gets a Generate image button, and the daily auto posts make an image for a business that has no photos of its own.",
+        placeholder: "AIza...",
+        group: "image",
+    },
+    {
+        key: "IMAGE_MODEL",
+        label: "Image model",
+        secret: false,
+        hint: "Leave blank for gemini-3.1-flash-lite-image (about 3p an image). gemini-nano-banana-2.1 is the fuller model at about the same price for 1K images.",
+        placeholder: "gemini-3.1-flash-lite-image",
+        group: "image",
     },
 ];
 
@@ -44,7 +64,7 @@ const SOURCE_LABEL: Record<Field["source"], string> = {
 
 export default function Settings() {
     const [current, setCurrent] = useState<Current | null>(null);
-    const [draft, setDraft] = useState<Record<Key, string>>({ AI_API_KEY: "", AI_BASE_URL: "", AI_MODEL: "", AI_PROXY_KEY: "" });
+    const [draft, setDraft] = useState<Record<Key, string>>({ AI_API_KEY: "", AI_BASE_URL: "", AI_MODEL: "", AI_PROXY_KEY: "", IMAGE_API_KEY: "", IMAGE_MODEL: "" });
     const [loadError, setLoadError] = useState("");
     const [saving, setSaving] = useState(false);
     const [testing, setTesting] = useState(false);
@@ -62,6 +82,8 @@ export default function Settings() {
                     AI_BASE_URL: data.AI_BASE_URL.source === "saved" ? data.AI_BASE_URL.value : "",
                     AI_MODEL: data.AI_MODEL.source === "saved" ? data.AI_MODEL.value : "",
                     AI_PROXY_KEY: "",
+                    IMAGE_API_KEY: "",
+                    IMAGE_MODEL: data.IMAGE_MODEL?.source === "saved" ? data.IMAGE_MODEL.value : "",
                 });
             })
             .catch((e) => setLoadError(e.message));
@@ -91,7 +113,7 @@ export default function Settings() {
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
             setCurrent(data);
-            setDraft((d) => ({ ...d, AI_API_KEY: "", AI_PROXY_KEY: "" }));
+            setDraft((d) => ({ ...d, AI_API_KEY: "", AI_PROXY_KEY: "", IMAGE_API_KEY: "" }));
             setClearing({});
             setNotice({ tone: "ok", text: "Saved. Replies and posts use the new connection from now on." });
         } catch (e: any) {
@@ -107,7 +129,7 @@ export default function Settings() {
         try {
             // Tests what is typed, falling back to what is saved for anything left blank.
             const body: Record<string, string> = {};
-            for (const f of FIELDS) if (draft[f.key].trim()) body[f.key] = draft[f.key].trim();
+            for (const f of FIELDS) if (f.group === "ai" && draft[f.key].trim()) body[f.key] = draft[f.key].trim();
             const res = await fetch("/api/settings", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -164,10 +186,18 @@ export default function Settings() {
                                 save();
                             }}
                         >
-                            {FIELDS.map((f) => {
+                            {FIELDS.map((f, i) => {
                                 const cur = current[f.key];
-                                return (
-                                    <div key={f.key}>
+                                if (!cur) return null;
+                                const heading = f.group === "image" && FIELDS[i - 1]?.group !== "image";
+                                return (<React.Fragment key={f.key}>
+                                    {heading && (
+                                        <div className="border-t border-slate-100 pt-6">
+                                            <h2 className="text-lg font-bold text-slate-900">Post images</h2>
+                                            <p className="mt-1 text-sm text-slate-500">Pictures for Google posts, made with Google's Gemini image model to match each post's text. Each image costs a few pence, and needs a paid Gemini API key (the free tier does not make images).</p>
+                                        </div>
+                                    )}
+                                    <div>
                                         <label htmlFor={f.key} className="mb-2 block text-sm font-semibold text-slate-700">
                                             {f.label}
                                         </label>
@@ -201,7 +231,7 @@ export default function Settings() {
                                             )}
                                         </div>
                                     </div>
-                                );
+                                </React.Fragment>);
                             })}
 
                             {notice && (

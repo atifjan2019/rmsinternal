@@ -3,6 +3,7 @@ import { verifySession } from "../../../lib/auth";
 import { queryD1 } from "../../../lib/storage";
 import { uploadImage, deleteImage, keyFromUrl, r2Configured, r2ConfigError, ALLOWED_IMAGE_TYPES } from "../../../lib/r2";
 import { listImages } from "../../../lib/posts";
+import { imagesConfigured } from "../../../lib/images";
 
 async function checkAuth(request: Request): Promise<boolean> {
     const cookies = request.headers.get("cookie") || "";
@@ -27,7 +28,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 
     try {
         const images = await listImages(location);
-        return json({ images, configured: r2Configured(), configError: r2ConfigError() });
+        return json({ images, configured: r2Configured(), configError: r2ConfigError(), generate: r2Configured() && (await imagesConfigured()) });
     } catch (err: any) {
         return json({ error: err.message }, 500);
     }

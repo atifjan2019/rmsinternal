@@ -73,6 +73,7 @@ export default function PostsManager({
     const [queue, setQueue] = useState<QueuedPost[]>([]);
     const [images, setImages] = useState<PostImage[]>([]);
     const [imagesConfigured, setImagesConfigured] = useState(true);
+    const [imagesGenerate, setImagesGenerate] = useState(false);
     const [imageError, setImageError] = useState<string | null>(null);
 
     const [loading, setLoading] = useState(true);
@@ -119,6 +120,7 @@ export default function PostsManager({
             if (!res.ok) throw new Error(data.error || "Failed to load images");
             setImages(data.images || []);
             setImagesConfigured(!!data.configured);
+            setImagesGenerate(!!data.generate);
             setImageError(data.configError || null);
         } catch (err: any) {
             setImageError(err.message);
@@ -232,6 +234,17 @@ export default function PostsManager({
             setNotice(live ? "Post deleted from Google." : "Post removed.");
             await load();
         }
+    }
+
+    async function generateImage(p: QueuedPost) {
+        const data = await post(
+            { action: "generate-image", id: p.id, summary: editing[p.id] ?? p.summary },
+            `genimg:${p.id}`
+        );
+        if (!data) return;
+        setQueue((q) => q.map((x) => (x.id === p.id ? { ...x, image_url: data.image.url } : x)));
+        if (settings) loadImages(settings.location_name);
+        setNotice("Image made and attached. It is in the library too, so later posts can use it.");
     }
 
     async function attachImage(p: QueuedPost, url: string | null) {
@@ -677,6 +690,15 @@ export default function PostsManager({
                             </div>
 
                             <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4">
+                                {imagesGenerate && (
+                                    <button
+                                        onClick={() => generateImage(p)}
+                                        disabled={busy === `genimg:${p.id}`}
+                                        className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-slate-700 transition-all hover:bg-slate-50 disabled:opacity-50"
+                                    >
+                                        {busy === `genimg:${p.id}` ? "Making image..." : p.image_url ? "New image" : "Generate image"}
+                                    </button>
+                                )}
                                 <button
                                     onClick={() => publish(p.id)}
                                     disabled={busy === `publish:${p.id}`}

@@ -221,3 +221,38 @@ export async function generatePostCopy(req: PostCopyRequest): Promise<string> {
 
     return text;
 }
+
+
+export interface ImagePromptRequest {
+    businessName: string;
+    /** The post the image will sit beside. */
+    summary: string;
+    knowledge?: string;
+}
+
+/**
+ * Describes a photo to go with a post, for the image model. Written by the
+ * text model so the picture matches the post rather than a generic stock
+ * scene; the rules keep out the things Google rejects or that look fake
+ * (text, logos, faces, invented offers).
+ */
+export async function generateImagePrompt(req: ImagePromptRequest): Promise<string> {
+    const system = [
+        "You write one-paragraph photo briefs for an image generator.",
+        "Rules:",
+        "- Output ONLY the brief, 40-70 words, in plain English.",
+        "- Describe a realistic, natural-light photograph that a local business would post: the setting, the key objects, the time of day, the camera angle.",
+        "- No people, faces, hands, text, logos, signs, number plates, prices or brand names.",
+        "- Keep to the UK: British roads, houses, vans and weather where relevant.",
+        "- Match the post's subject exactly; do not add services or claims the post does not make.",
+    ].join("\n");
+    const user = [
+        `Business: ${req.businessName}`,
+        req.knowledge ? `About the business: ${req.knowledge.slice(0, 600)}` : "",
+        `Post text: ${req.summary}`,
+        "",
+        "Write the photo brief.",
+    ].filter(Boolean).join("\n");
+    const brief = await chat({ system, user, maxTokens: 200, temperature: 0.6, what: "Image brief" });
+    return `${brief.replace(/^["“]|["”]$/g, "").trim()} Photorealistic, sharp, no text or logos anywhere in the image.`;
+}

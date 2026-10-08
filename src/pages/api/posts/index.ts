@@ -10,8 +10,11 @@ import {
     editPublishedPost,
     deletePost,
     ctaNeedsUrl,
+    getQueuedPost,
     type PostStatus,
 } from "../../../lib/posts";
+import { getAutoReplySettings } from "../../../lib/google";
+import { generatePostImage } from "../../../lib/images";
 
 async function checkAuth(request: Request): Promise<boolean> {
     const cookies = request.headers.get("cookie") || "";
@@ -59,6 +62,21 @@ export const POST: APIRoute = async ({ request }) => {
             const post = await generatePostFor(body.location_name);
             if (!post) return json({ error: "This business has no post settings saved yet." }, 400);
             return json({ post });
+        }
+
+        if (action === "generate-image") {
+            if (!body.id) return json({ error: "id is required" }, 400);
+            const post = await getQueuedPost(body.id);
+            if (!post) return json({ error: "Post not found" }, 404);
+            const autoReply = (await getAutoReplySettings(post.location_name))[0];
+            const image = await generatePostImage({
+                locationName: post.location_name,
+                businessName: post.location_title,
+                summary: typeof body.summary === "string" && body.summary.trim() ? body.summary : post.summary,
+                knowledge: autoReply?.ai_instructions || "",
+            });
+            await updateQueuedPost(post.id, { image_url: image.url });
+            return json({ image });
         }
 
         if (action === "publish") {
