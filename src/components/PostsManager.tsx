@@ -81,6 +81,10 @@ export default function PostsManager({
     const [error, setError] = useState<string | null>(null);
     const [notice, setNotice] = useState<string | null>(null);
     const [editing, setEditing] = useState<Record<string, string>>({});
+    // Writing a post happens in stages; this drives the progress bar.
+    const [writing, setWriting] = useState<{ stage: string; percent: number } | null>(null);
+    // Which draft shows its image picker.
+    const [picking, setPicking] = useState<string | null>(null);
     const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
     const [dragging, setDragging] = useState(false);
     const fileRef = useRef<HTMLInputElement>(null);
@@ -172,10 +176,28 @@ export default function PostsManager({
 
     async function generateNow() {
         if (!settings) return;
-        const data = await post({ action: "generate", location_name: settings.location_name }, "generate");
-        if (data) {
-            setNotice("Draft created below.");
+        setWriting({ stage: "Writing the post", percent: 15 });
+        // The bar creeps forward while the model works, so a 10-second wait does not look stuck.
+        const creep = setInterval(() => setWriting((w) => (w && w.percent < 85 ? { ...w, percent: w.percent + 2 } : w)), 400);
+        try {
+            const data = await post({ action: "generate", location_name: settings.location_name }, "generate");
+            if (!data?.post) return;
+            const made: QueuedPost = data.post;
+            // A business with photos gets one from its library at once. Otherwise,
+            // when image generation is on, a picture is made for this post now.
+            if (!made.image_url && imagesGenerate) {
+                setWriting({ stage: "Making the picture", percent: 55 });
+                const img = await post({ action: "generate-image", id: made.id }, "generate");
+                if (img?.image) made.image_url = img.image.url;
+            }
+            setWriting({ stage: "Done", percent: 100 });
             await load();
+            if (settings) loadImages(settings.location_name);
+            setNotice("Your post is ready below. Check it, change anything you like, then publish.");
+            setTimeout(() => document.getElementById(`post-${made.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 150);
+        } finally {
+            clearInterval(creep);
+            setTimeout(() => setWriting(null), 600);
         }
     }
 
@@ -519,6 +541,21 @@ export default function PostsManager({
                             </div>
                         </div>
 
+                        {writing && (
+                            <div className="mt-6 rounded-2xl border border-[#EE314F]/20 bg-[#EE314F]/5 px-5 py-4" role="status">
+                                <div className="flex items-center justify-between text-sm font-semibold text-slate-800">
+                                    <span>{writing.stage}&hellip;</span>
+                                    <span className="text-xs text-slate-500">{writing.percent}%</span>
+                                </div>
+                                <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-white">
+                                    <div className="h-full rounded-full bg-[#EE314F] transition-all duration-300" style={{ width: `${writing.percent}%` }} />
+                                </div>
+                                <p className="mt-2 text-xs text-slate-500">
+                                    First the text, then a matching picture. About 10 to 30 seconds.
+                                </p>
+                            </div>
+                        )}
+
                         <div className="mt-6 flex flex-wrap items-center justify-end gap-3 border-t border-slate-100 pt-5">
                             <button
                                 onClick={generateNow}
@@ -640,65 +677,123 @@ export default function PostsManager({
                     <h4 className="text-lg font-bold text-slate-900">
                         Waiting for approval <span className="text-slate-400">({drafts.length})</span>
                     </h4>
-                    {drafts.map((p) => (
-                        <div key={p.id} className="rounded-3xl border border-slate-200 bg-white p-6">
-                            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    {drafts.map((p) => {
+                        const isEditing = editing[p.id] !== undefined;
+                        return (
+                        <div key={p.id} id={`post-${p.id}`} className="rounded-3xl border border-slate-200 bg-white p-6 scroll-mt-6">
+                            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                                 <span className="text-sm font-bold text-slate-900">{p.location_title}</span>
                                 <span className="text-xs text-slate-400">
                                     Written {new Date(p.created_at).toLocaleString()}
                                 </span>
                             </div>
 
-                            <div className="flex flex-col gap-4 sm:flex-row">
-                                {p.image_url && (
-                                    <img
-                                        src={p.image_url}
-                                        alt=""
-                                        className="h-32 w-32 shrink-0 rounded-2xl border border-slate-200 object-cover"
-                                    />
-                                )}
+                            <div className="flex flex-col gap-5 sm:flex-row">
+                                {/* The picture, as Google will show it, with its own controls. */}
+                                <div className="w-full shrink-0 sm:w-64">
+                                    {p.image_url ? (
+                                        <img
+                                            src={p.image_url}
+                                            alt=""
+                                            className="aspect-[4/3] w-full rounded-2xl border border-slate-200 object-cover"
+                                        />
+                                    ) : (
+                                        <div className="flex aspect-[4/3] w-full items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-400">
+                                            No picture
+                                        </div>
+                                    )}
+                                    <div className="mt-2 flex flex-wrap gap-2">
+                                        {imagesGenerate && (
+                                            <button
+                                                onClick={() => generateImage(p)}
+                                                disabled={busy === `genimg:${p.id}`}
+                                                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                                            >
+                                                {busy === `genimg:${p.id}` ? "Making..." : p.image_url ? "New picture" : "Make a picture"}
+                                            </button>
+                                        )}
+                                        {images.length > 0 && (
+                                            <button
+                                                onClick={() => setPicking(picking === p.id ? null : p.id)}
+                                                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                            >
+                                                {picking === p.id ? "Close" : "Choose from library"}
+                                            </button>
+                                        )}
+                                        {p.image_url && (
+                                            <button
+                                                onClick={() => attachImage(p, null)}
+                                                disabled={busy === `img:${p.id}`}
+                                                className="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-400 hover:bg-slate-100"
+                                            >
+                                                Remove
+                                            </button>
+                                        )}
+                                    </div>
+                                    {picking === p.id && (
+                                        <div className="mt-2 grid grid-cols-3 gap-2">
+                                            {images.map((img) => (
+                                                <button
+                                                    key={img.id}
+                                                    onClick={() => { attachImage(p, img.url); setPicking(null); }}
+                                                    title={img.filename}
+                                                    className={`overflow-hidden rounded-lg border-2 ${p.image_url === img.url ? "border-[#EE314F]" : "border-transparent hover:border-slate-300"}`}
+                                                >
+                                                    <img src={img.url} alt={img.filename} className="aspect-square w-full object-cover" />
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* The text: shown as it will read, or a box when being changed. */}
                                 <div className="min-w-0 flex-1">
-                                    <textarea
-                                        rows={4}
-                                        value={editing[p.id] ?? p.summary}
-                                        onChange={(e) => setEditing({ ...editing, [p.id]: e.target.value })}
-                                        className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm text-slate-900 focus:border-[#EE314F] focus:bg-white focus:outline-none"
-                                    />
-                                    <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-slate-400">
+                                    {isEditing ? (
+                                        <textarea
+                                            rows={5}
+                                            autoFocus
+                                            value={editing[p.id]}
+                                            onChange={(e) => setEditing({ ...editing, [p.id]: e.target.value })}
+                                            className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm text-slate-900 focus:border-[#EE314F] focus:bg-white focus:outline-none"
+                                        />
+                                    ) : (
+                                        <p className="whitespace-pre-wrap rounded-2xl bg-slate-50/70 px-4 py-3 text-sm leading-relaxed text-slate-900">{p.summary}</p>
+                                    )}
+                                    <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-400">
                                         <span>{(editing[p.id] ?? p.summary).length} characters</span>
                                         <span>·</span>
                                         <span>Button: {CTA_OPTIONS.find((c) => c.value === p.cta_type)?.label || p.cta_type}</span>
-                                        {images.length > 0 && (
+                                    </div>
+                                    <div className="mt-3 flex flex-wrap gap-2">
+                                        {isEditing ? (
                                             <>
-                                                <span>·</span>
-                                                <select
-                                                    value={p.image_url || ""}
-                                                    onChange={(e) => attachImage(p, e.target.value || null)}
-                                                    className="rounded-lg border border-slate-200 px-2 py-1 text-xs"
+                                                <button
+                                                    onClick={() => saveDraft(p)}
+                                                    disabled={busy === `save:${p.id}` || editing[p.id] === p.summary}
+                                                    className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
                                                 >
-                                                    <option value="">No image</option>
-                                                    {images.map((img) => (
-                                                        <option key={img.id} value={img.url}>
-                                                            {img.filename.slice(0, 24)}
-                                                        </option>
-                                                    ))}
-                                                </select>
+                                                    {busy === `save:${p.id}` ? "Saving..." : "Save text"}
+                                                </button>
+                                                <button
+                                                    onClick={() => setEditing((e) => { const n = { ...e }; delete n[p.id]; return n; })}
+                                                    className="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-100"
+                                                >
+                                                    Cancel
+                                                </button>
                                             </>
+                                        ) : (
+                                            <button
+                                                onClick={() => setEditing({ ...editing, [p.id]: p.summary })}
+                                                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                            >
+                                                Change text
+                                            </button>
                                         )}
                                     </div>
                                 </div>
                             </div>
 
                             <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4">
-                                {imagesGenerate && (
-                                    <button
-                                        onClick={() => generateImage(p)}
-                                        disabled={busy === `genimg:${p.id}`}
-                                        className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-slate-700 transition-all hover:bg-slate-50 disabled:opacity-50"
-                                    >
-                                        {busy === `genimg:${p.id}` ? "Making image..." : p.image_url ? "New image" : "Generate image"}
-                                    </button>
-                                )}
                                 <button
                                     onClick={() => publish(p.id)}
                                     disabled={busy === `publish:${p.id}`}
@@ -706,15 +801,6 @@ export default function PostsManager({
                                 >
                                     {busy === `publish:${p.id}` ? "Publishing..." : "Publish to Google"}
                                 </button>
-                                {editing[p.id] !== undefined && editing[p.id] !== p.summary && (
-                                    <button
-                                        onClick={() => saveDraft(p)}
-                                        disabled={busy === `save:${p.id}`}
-                                        className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50"
-                                    >
-                                        Save edit
-                                    </button>
-                                )}
                                 <button
                                     onClick={() => removePost(p)}
                                     disabled={busy === `del:${p.id}`}
@@ -724,7 +810,8 @@ export default function PostsManager({
                                 </button>
                             </div>
                         </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
 
