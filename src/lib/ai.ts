@@ -53,10 +53,10 @@ async function chatAnthropic(cfg: AiConfig, opts: ChatOptions): Promise<string> 
             "anthropic-version": "2023-06-01",
             "Content-Type": "application/json",
         },
+        // No temperature: current Claude models reject it as deprecated.
         body: JSON.stringify({
             model: cfg.model,
             max_tokens: opts.maxTokens,
-            temperature: opts.temperature,
             system: opts.system,
             messages: [{ role: "user", content: opts.user }],
         }),
