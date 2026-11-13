@@ -141,6 +141,59 @@ export async function listImages(locationName: string) {
     return results as any[];
 }
 
+/** A picture used on any of a business's last N posts is not used again. */
+export const RECENT_IMAGE_WINDOW = 4;
+
+const isGenerated = (img: any) => String(img.filename || "").startsWith("Generated:");
+
+/**
+ * Chooses the picture for a new post so consecutive posts never share one:
+ *
+ * 1. the business's own uploaded photos, least-recently-used first, skipping
+ *    any used on its recent posts;
+ * 2. otherwise a newly generated picture for this post's text;
+ * 3. if generation is unavailable or fails, the least-recently-used library
+ *    picture not on the recent posts, and only as a last resort one that is.
+ *
+ * Previously a picture was generated only when the library was empty, so the
+ * first generated picture was reused on every later post.
+ */
+async function pickPostImage(opts: {
+    locationName: string;
+    businessName: string;
+    summary: string;
+    knowledge: string;
+    recentImageUrls: string[];
+}): Promise<{ id: string; url: string } | null> {
+    const images = await listImages(opts.locationName);
+    const recent = new Set(opts.recentImageUrls);
+    const fresh = images.filter((img) => !recent.has(img.url));
+
+    const markUsed = async (img: { id: string; url: string }) => {
+        await queryD1("UPDATE post_images SET last_used_at = ? WHERE id = ?", [new Date().toISOString(), img.id]);
+        return img;
+    };
+
+    const uploaded = fresh.find((img) => !isGenerated(img));
+    if (uploaded) return markUsed(uploaded);
+
+    if (await imagesConfigured()) {
+        try {
+            return await generatePostImage({
+                locationName: opts.locationName,
+                businessName: opts.businessName,
+                summary: opts.summary,
+                knowledge: opts.knowledge,
+            });
+        } catch (err) {
+            console.error("Post image generation failed:", (err as Error).message);
+        }
+    }
+
+    const fallback = fresh[0] || images[0] || null;
+    return fallback ? markUsed(fallback) : null;
+}
+
 /**
  * Generates one post for a business and queues it. Returns the queued row, or
  * null when the business has nothing to generate from.
@@ -169,23 +222,13 @@ export async function generatePostFor(locationName: string): Promise<QueuedPost 
         avoid: recentSummaries,
     });
 
-    // Least-recently-used image, so a small library still rotates. A business
-    // with no images yet gets one made for this post, which then joins its
-    // library. A failure there is logged and the post goes on without a picture.
-    const images = await listImages(locationName);
-    let image = images[0] || null;
-    if (image) {
-        await queryD1("UPDATE post_images SET last_used_at = ? WHERE id = ?", [
-            new Date().toISOString(),
-            image.id,
-        ]);
-    } else if (await imagesConfigured()) {
-        try {
-            image = await generatePostImage({ locationName, businessName: settings.location_title, summary, knowledge });
-        } catch (err) {
-            console.error("Post image generation failed:", (err as Error).message);
-        }
-    }
+    const image = await pickPostImage({
+        locationName,
+        businessName: settings.location_title,
+        summary,
+        knowledge,
+        recentImageUrls: priorAll.slice(0, RECENT_IMAGE_WINDOW).map((p) => p.image_url).filter(Boolean) as string[],
+    });
 
     const post: QueuedPost = {
         id: crypto.randomUUID(),
